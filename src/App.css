@@ -1,0 +1,269 @@
+/* RookX Atmospheric Visual Themes & Dark/Light Mode Styling */
+
+/* 1. Base Variables & Glow Theme */
+:root, .dark {
+  --neon-purple: #a855f7;
+  --neon-blue: #3b82f6;
+  --neon-cyan: #06b6d4;
+  --neon-rose: #f43f5e;
+  --neon-orange: #fb923c;
+  --bg-dark: #040612;
+  --panel-bg: rgba(10, 14, 29, 0.78);
+  --panel-border: rgba(255, 255, 255, 0.09);
+  --text-main: #f8fafc;
+  --text-sub: #cbd5e1;
+  --text-muted: #94a3b8;
+  --input-bg: rgba(4, 6, 18, 0.85);
+  --input-border: rgba(255, 255, 255, 0.14);
+  --card-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --header-bg: rgba(4, 6, 18, 0.92);
+}
+
+/* Light Mode Variables */
+.light-mode {
+  --neon-purple: #8b5cf6;
+  --neon-blue: #2563eb;
+  --neon-cyan: #0284c7;
+  --neon-rose: #e11d48;
+  --neon-orange: #d97706;
+  --bg-dark: #f8fafc;
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-border: rgba(226, 232, 240, 0.95);
+  --text-main: #0f172a;
+  --text-sub: #334155;
+  --text-muted: #64748b;
+  --input-bg: #ffffff;
+  --input-border: rgba(203, 213, 225, 0.9);
+  --card-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.07);
+  --header-bg: rgba(255, 255, 255, 0.95);
+}
+
+/* 2. COOL ANIMATED QUANTUM NEBULA BACKGROUND */
+.cyber-bg {
+  background-color: var(--bg-dark);
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.4s ease;
+}
+
+/* Floating Ambient Orbs (Dark Mode) */
+.dark .cyber-bg {
+  background-color: #040612;
+  background-image: 
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(168, 85, 247, 0.18), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 90% 40%, rgba(6, 182, 212, 0.14), transparent 65%),
+    radial-gradient(ellipse 65% 55% at 10% 80%, rgba(244, 63, 94, 0.12), transparent 70%),
+    radial-gradient(circle 500px at 50% 50%, rgba(59, 130, 246, 0.08), transparent 80%);
+}
+
+.dark .cyber-bg::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 20%;
+  width: 60vw;
+  height: 60vw;
+  max-width: 800px;
+  max-height: 800px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.06) 50%, transparent 80%);
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: float-nebula1 22s ease-in-out infinite alternate;
+}
+
+.dark .cyber-bg::after {
+  content: '';
+  position: absolute;
+  bottom: -15%;
+  right: 15%;
+  width: 55vw;
+  height: 55vw;
+  max-width: 700px;
+  max-height: 700px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.14) 0%, rgba(244, 63, 94, 0.08) 50%, transparent 80%);
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  animation: float-nebula2 26s ease-in-out infinite alternate;
+}
+
+/* Floating Ambient Orbs (Light Mode) */
+.light-mode .cyber-bg, html:not(.dark) .cyber-bg {
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(168, 85, 247, 0.09), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 45%, rgba(2, 132, 199, 0.07), transparent 65%),
+    radial-gradient(ellipse 65% 55% at 15% 80%, rgba(225, 29, 72, 0.06), transparent 70%);
+}
+
+.light-mode .cyber-bg::before, html:not(.dark) .cyber-bg::before {
+  content: '';
+  position: absolute;
+  top: -15%;
+  left: 25%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  animation: float-nebula1 25s ease-in-out infinite alternate;
+}
+
+/* Smooth Floating Keyframe Animations */
+@keyframes float-nebula1 {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.1); }
+  100% { transform: translate(-40px, 70px) scale(0.95); }
+}
+
+@keyframes float-nebula2 {
+  0% { transform: translate(0px, 0px) scale(1); }
+  50% { transform: translate(-70px, -50px) scale(1.15); }
+  100% { transform: translate(50px, -30px) scale(0.9); }
+}
+
+/* 3. Premium Glassmorphism HUD Card */
+.glass-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--card-shadow);
+  color: var(--text-main);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 14px 40px 0 rgba(168, 85, 247, 0.18);
+  transform: translateY(-2px);
+}
+
+/* Glowing Edges */
+.border-glow-purple { border-color: rgba(168, 85, 247, 0.45); box-shadow: 0 0 20px rgba(168, 85, 247, 0.15); }
+.border-glow-blue { border-color: rgba(59, 130, 246, 0.45); box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+.border-glow-cyan { border-color: rgba(6, 182, 212, 0.45); box-shadow: 0 0 20px rgba(6, 182, 212, 0.15); }
+.border-glow-rose { border-color: rgba(244, 63, 94, 0.45); box-shadow: 0 0 20px rgba(244, 63, 94, 0.15); }
+
+/* Light Mode Overrides for High Readability */
+.light-mode .text-white { color: #0f172a !important; }
+.light-mode .text-slate-200 { color: #1e293b !important; }
+.light-mode .text-slate-300 { color: #334155 !important; }
+.light-mode .text-slate-400 { color: #64748b !important; }
+.light-mode .text-slate-500 { color: #64748b !important; }
+
+.light-mode .bg-cyber-dark, 
+.light-mode .bg-cyber-dark\/40, 
+.light-mode .bg-cyber-dark\/80,
+.light-mode .bg-cyber-dark\/60,
+.light-mode .bg-cyber-dark\/20,
+.light-mode .bg-cyber-dark\/30,
+.light-mode .bg-cyber-dark\/50 {
+  background-color: rgba(241, 245, 249, 0.92) !important;
+}
+
+.light-mode .border-cyber-border,
+.light-mode .border-cyber-border\/40,
+.light-mode .border-cyber-border\/60,
+.light-mode .border-cyber-border\/80 {
+  border-color: rgba(203, 213, 225, 0.85) !important;
+}
+
+.light-mode select, 
+.light-mode input[type="text"],
+.light-mode input[type="password"],
+.light-mode textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-mode select:focus, 
+.light-mode input:focus,
+.light-mode textarea:focus {
+  border-color: var(--neon-purple) !important;
+}
+
+.light-mode header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+.light-mode footer {
+  background-color: rgba(241, 245, 249, 0.95) !important;
+  border-top-color: rgba(226, 232, 240, 0.9) !important;
+  color: #64748b !important;
+}
+
+/* Custom Animated Keyframes */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.3), inset 0 0 8px rgba(168, 85, 247, 0.15);
+    border-color: rgba(168, 85, 247, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.6), inset 0 0 12px rgba(168, 85, 247, 0.3);
+    border-color: rgba(168, 85, 247, 0.8);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+.float-element {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.35);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.65);
+}
+
+/* Cyber Buttons & HUD Text */
+.cyber-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.cyber-btn-purple {
+  background: linear-gradient(135deg, var(--neon-purple) 0%, #7e22ce 100%);
+  box-shadow: 0 2px 14px rgba(168, 85, 247, 0.35);
+}
+
+.cyber-btn-purple:hover {
+  box-shadow: 0 4px 22px rgba(168, 85, 247, 0.55);
+  transform: translateY(-1px);
+}
+
+/* HUD Text */
+.hud-label {
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-purple);
+}
+
+/* Radar Chart Custom styling overlay */
+.radar-glow svg {
+  filter: drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.35));
+}
