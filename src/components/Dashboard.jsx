@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { CAREER_LIST } from '../data/careerData';
-import { Activity, Compass, Cpu, Award, ArrowRight, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { 
+  Activity, Compass, Cpu, Award, ArrowRight, X, CheckCircle2, 
+  Sparkles, TrendingUp, Target, Zap, ShieldCheck, Flame, ChevronRight, Layers
+} from 'lucide-react';
+import { getLevelInfo } from '../utils/gamification';
 
-export default function Dashboard({ profile, assessment, targetCareerId, setTab, onSelectTarget }) {
+export default function Dashboard({ profile, assessment, targetCareerId, setTab, onSelectTarget, gamificationState }) {
   const [showWhyModal, setShowWhyModal] = useState(false);
 
   const getBlendedMetric = (profileVal, assessmentVal) => {
@@ -47,7 +51,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
     compatibility: getCareerCompatibility(career)
   })).sort((a, b) => b.compatibility - a.compatibility);
 
-  // Check if assessment is genuinely completed
+  // Check if assessment is completed
   const hasAssessment = Boolean(
     profile.isOnboarded && 
     assessment && 
@@ -93,36 +97,154 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
     const s4 = getBlendedMetric(profile.skills?.communication, assessment.skills?.communication);
     return Math.round((s1 + s2 + s3 + s4) / 4);
   };
-  const readinessIndex = getReadinessScore();
 
-  const userName = profile.fullName ? profile.fullName.toUpperCase() : 'STUDENT';
+  const readinessIndex = getReadinessScore();
+  const levelInfo = getLevelInfo(gamificationState?.xp || 450);
+  const userName = profile.fullName ? profile.fullName.split(' ')[0] : 'Student';
+
+  // 8-Step Journey Definition
+  const JOURNEY_STEPS = [
+    { id: 1, title: 'Assess Fit', desc: 'Career Fit Test', tab: 'assessment', icon: Compass, isDone: hasAssessment },
+    { id: 2, title: 'Discover Paths', desc: 'Compare Matches', tab: 'decision', icon: Layers, isDone: hasAssessment },
+    { id: 3, title: 'Try Work', desc: 'Try Before Commit', tab: 'try_career', icon: Sparkles, isDone: (gamificationState?.triedSimulations?.length || 0) > 0 },
+    { id: 4, title: 'Reality Check', desc: 'Market Benchmark', tab: 'reality', icon: Activity, isDone: true },
+    { id: 5, title: 'Progress Plan', desc: 'Readiness Projection', tab: 'progress', icon: TrendingUp, isDone: true },
+    { id: 6, title: 'Action Roadmap', desc: '4-Week Growth', tab: 'roadmap', icon: Target, isDone: (gamificationState?.completedTasks?.length || 0) > 0 },
+    { id: 7, title: 'Earn XP & Badges', desc: 'Unlock Achievements', tab: 'xp_badges', icon: Award, isDone: (gamificationState?.unlockedBadges?.length || 0) > 0 },
+    { id: 8, title: 'Career Ready', desc: 'Reach > 80% Readiness', tab: 'progress', icon: ShieldCheck, isDone: readinessIndex >= 80 }
+  ];
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn font-mono pb-12">
       
-      {/* Top Welcome Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-cyber-border pb-4 gap-3">
+      {/* Welcome Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-cyber-border pb-4 gap-4">
         <div>
-          <h2 className="text-2xl font-bold font-mono text-white tracking-wide">
-            WELCOME BACK, <span className="text-cyber-neonPurple">{userName}</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-cyber-neonPurple/40 bg-cyber-neonPurple/10 text-cyber-neonPurple text-xs font-bold uppercase tracking-widest mb-1">
+            <Sparkles size={13} className="animate-pulse" />
+            CAREER DECISION PLATFORM
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Welcome back, <span className="text-cyber-neonPurple">{userName} 👋</span>
           </h2>
-          <p className="text-xs text-slate-400 font-mono mt-0.5">
-            Profile Matrix: {profile.academic?.qualification || 'College Student'} • {profile.academic?.stream || 'Computer Science'}
+          <p className="text-xs text-slate-300 mt-1">
+            Your Career Journey: <span className="text-cyber-neonCyan font-bold">Assess → Discover → Try → Understand → Improve → Earn XP → Career Ready</span>
           </p>
         </div>
+
         <div className="flex flex-wrap gap-2">
           <button 
             onClick={() => setTab('profile')}
-            className="px-3.5 py-1.5 border border-cyber-border rounded text-xs font-mono text-slate-300 hover:border-cyber-neonPurple transition-all font-bold"
+            className="px-3.5 py-2 border border-cyber-border rounded-lg text-xs font-mono text-slate-300 hover:border-cyber-neonPurple transition-all font-bold cursor-pointer"
           >
             EDIT PROFILE
           </button>
           <button 
             onClick={() => setTab('assessment')}
-            className="px-3.5 py-1.5 border border-cyber-border bg-cyber-neonPurple/15 text-cyber-neonPurple border-cyber-neonPurple/30 rounded text-xs font-mono hover:bg-cyber-neonPurple/25 transition-all font-bold"
+            className="px-3.5 py-2 border border-cyber-neonPurple/40 bg-cyber-neonPurple/15 text-cyber-neonPurple rounded-lg text-xs font-mono hover:bg-cyber-neonPurple/25 transition-all font-bold cursor-pointer"
           >
             {hasAssessment ? 'RETAKE ASSESSMENT' : 'TAKE ASSESSMENT'}
           </button>
+        </div>
+      </div>
+
+      {/* IMPORTANT STATS BAR (Part 11 Requirement) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        
+        <div className="p-4 rounded-xl border border-cyber-neonCyan/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+          <span className="text-[10px] text-slate-400 block uppercase font-bold">CAREER READINESS</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-cyber-neonCyan">{readinessIndex}%</span>
+          <span className="text-[9px] text-slate-400 block">Baseline Readiness</span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-cyber-neonPurple/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+          <span className="text-[10px] text-slate-400 block uppercase font-bold">ROOKX LEVEL</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-cyber-neonPurple">LVL {levelInfo.level}</span>
+          <span className="text-[9px] text-cyber-neonPurple block truncate font-bold">{levelInfo.name}</span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-amber-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
+          <span className="text-[10px] text-slate-400 block uppercase font-bold">TOTAL XP</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-amber-400">{(gamificationState?.xp || 450).toLocaleString()}</span>
+          <span className="text-[9px] text-amber-400 block font-bold">Career XP Points</span>
+        </div>
+
+        <div className="p-4 rounded-xl border border-emerald-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(52,211,153,0.15)]">
+          <span className="text-[10px] text-slate-400 block uppercase font-bold">CURRENT CAREER</span>
+          <span className="text-base sm:text-lg font-bold text-white block truncate">{activeCareer.name}</span>
+          <span className="text-[9px] text-emerald-400 block font-bold">{activeCareer.compatibility}% Compatibility</span>
+        </div>
+
+        <div className="col-span-2 sm:col-span-1 p-4 rounded-xl border border-rose-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(251,113,133,0.15)]">
+          <span className="text-[10px] text-slate-400 block uppercase font-bold">ROADMAP PROGRESS</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-rose-400">68%</span>
+          <span className="text-[9px] text-slate-400 block">4-Week Completion</span>
+        </div>
+
+      </div>
+
+      {/* YOUR NEXT MISSION CARD (Part 11 Requirement) */}
+      <div className="glass-panel border-glow-purple p-6 rounded-2xl relative scanlines flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold border border-amber-400/40 bg-amber-400/10 text-amber-400 uppercase">
+            <Zap size={12} className="animate-pulse" /> RECOMMENDED ACTION MISSION
+          </div>
+          <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+            🧩 Mission: Solve 2 Data Structures & Algorithms Problems
+          </h3>
+          <p className="text-xs text-slate-300 max-w-xl">
+            Target Skill: <strong className="text-cyber-neonCyan">Problem Solving & Logic</strong> • Est Time: <strong className="text-amber-400">30 Min</strong>
+          </p>
+          <div className="flex items-center gap-3 text-xs font-bold pt-1">
+            <span className="text-purple-400 px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/30">+50 XP</span>
+            <span className="text-cyan-400 px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/30">+2% Career Readiness</span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setTab('roadmap')}
+          className="cyber-btn cyber-btn-purple px-6 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 shrink-0 shadow-lg cursor-pointer"
+        >
+          START MISSION <ArrowRight size={14} />
+        </button>
+      </div>
+
+      {/* 8-STEP INTERACTIVE CAREER JOURNEY STEPPER */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <Layers size={16} className="text-cyber-neonPurple" />
+            Your 8-Step Career Journey Roadmap
+          </h3>
+          <span className="text-xs text-slate-400">Click any step to jump to action</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {JOURNEY_STEPS.map((step) => {
+            const Icon = step.icon;
+            return (
+              <div
+                key={step.id}
+                onClick={() => setTab(step.tab)}
+                className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2 scanlines ${
+                  step.isDone 
+                    ? 'border-emerald-500/50 bg-emerald-500/10 text-white hover:border-emerald-400' 
+                    : 'border-cyber-border bg-cyber-dark/40 text-slate-400 hover:border-cyber-neonPurple hover:bg-cyber-neonPurple/10'
+                }`}
+              >
+                <div className="flex justify-between items-center text-[10px] font-bold">
+                  <span>STEP 0{step.id}</span>
+                  {step.isDone ? <CheckCircle2 size={13} className="text-emerald-400" /> : <div className="w-2 h-2 rounded-full bg-slate-600"></div>}
+                </div>
+
+                <div className="space-y-1">
+                  <Icon size={18} className={step.isDone ? 'text-emerald-400' : 'text-slate-400'} />
+                  <span className="text-xs font-bold block truncate text-white">{step.title}</span>
+                  <span className="text-[9px] text-slate-400 block truncate">{step.desc}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -137,7 +259,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
               CAREER DECISION ENGINE
             </h3>
             <span className={`text-[9px] font-mono px-2 py-0.5 rounded font-bold ${hasAssessment ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
-              {hasAssessment ? 'Analysis Status: Complete' : 'Analysis Pending'}
+              {hasAssessment ? 'Analysis Complete' : 'Analysis Pending'}
             </span>
           </div>
 
@@ -149,7 +271,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
                   <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">Top Career Match</span>
                   <div className="flex items-baseline justify-between mt-1">
                     <span className="text-base font-bold text-white">{topMatch.name}</span>
-                    <span className="text-xl font-extrabold text-cyber-neonPurple">{topMatch.compatibility}% Compatibility</span>
+                    <span className="text-xl font-extrabold text-cyber-neonPurple">{topMatch.compatibility}% Fit</span>
                   </div>
                 </div>
 
@@ -169,10 +291,6 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
                       <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
                       <span>Diagnostic performance score</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                      <span>Career goal & academic fit</span>
-                    </div>
                   </div>
                 </div>
 
@@ -181,14 +299,14 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
                   <span className="text-[10px] text-amber-400 font-bold block uppercase">Primary Skill Gap</span>
                   <div className="text-xs font-bold text-white">{primarySkillGap}</div>
                   <span className="text-[10px] text-slate-400 block mt-1">
-                    <strong>Recommended Next Step:</strong> Build {primarySkillGap} fundamentals and reassess your readiness.
+                    <strong>Recommended Next Step:</strong> Build {primarySkillGap} fundamentals and reassess readiness.
                   </span>
                 </div>
               </div>
 
               <button
                 onClick={() => setShowWhyModal(true)}
-                className="cyber-btn cyber-btn-purple w-full py-2.5 rounded text-xs font-mono tracking-wider font-bold text-white flex items-center justify-center gap-2 mt-4"
+                className="cyber-btn cyber-btn-purple w-full py-2.5 rounded text-xs font-mono tracking-wider font-bold text-white flex items-center justify-center gap-2 mt-4 cursor-pointer"
               >
                 WHY THIS CAREER? <ArrowRight size={14} />
               </button>
@@ -205,7 +323,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
 
               <button
                 onClick={() => setTab('assessment')}
-                className="cyber-btn cyber-btn-purple w-full py-3 rounded text-xs font-mono tracking-wider font-bold text-white flex items-center justify-center gap-2"
+                className="cyber-btn cyber-btn-purple w-full py-3 rounded text-xs font-mono tracking-wider font-bold text-white flex items-center justify-center gap-2 cursor-pointer"
               >
                 TAKE ASSESSMENT <ArrowRight size={14} />
               </button>
@@ -225,8 +343,8 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
               {hasAssessment ? (
                 <>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-extrabold font-mono text-white">{readinessIndex}</span>
-                    <span className="text-xs text-cyber-neonCyan font-mono">/ 100 Readiness Index</span>
+                    <span className="text-4xl font-extrabold font-mono text-white">{readinessIndex}%</span>
+                    <span className="text-xs text-cyber-neonCyan font-mono">Readiness Index</span>
                   </div>
                   <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-cyber-border">
                     <div 
@@ -243,10 +361,10 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
             </div>
 
             <button 
-              onClick={() => setTab('roadmap')}
-              className="text-left text-xs font-mono text-cyber-neonCyan hover:underline flex items-center gap-1 mt-4 font-bold"
+              onClick={() => setTab('progress')}
+              className="text-left text-xs font-mono text-cyber-neonCyan hover:underline flex items-center gap-1 mt-4 font-bold cursor-pointer"
             >
-              Resolve skill gaps & tracks <ChevronRight className="inline" size={12} />
+              Simulate career progress <ChevronRight className="inline" size={12} />
             </button>
           </div>
 
@@ -275,37 +393,37 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
 
             <button 
               onClick={() => setTab('decision')}
-              className="text-left text-xs font-mono text-cyber-neonRose hover:underline flex items-center gap-1 mt-4 font-bold"
+              className="text-left text-xs font-mono text-cyber-neonRose hover:underline flex items-center gap-1 mt-4 font-bold cursor-pointer"
             >
-              Analyze career matches <ChevronRight className="inline" size={12} />
+              Compare career matches <ChevronRight className="inline" size={12} />
             </button>
           </div>
 
           {/* Quick Tools */}
           <div className="md:col-span-2 glass-panel border-glow-purple p-5 rounded-xl">
-            <span className="hud-label text-cyber-neonPurple font-bold">CAREER DECISION TOOLS</span>
+            <span className="hud-label text-cyber-neonPurple font-bold">CAREER DECISION ENGINE TOOLS</span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
               <button 
+                onClick={() => setTab('try_career')}
+                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
+              >
+                🎮 Try Career
+              </button>
+              <button 
                 onClick={() => setTab('reality')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold"
+                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
               >
                 ⚖️ Reality Check
               </button>
               <button 
-                onClick={() => setTab('simulator')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold"
-              >
-                🔮 Compare Careers
-              </button>
-              <button 
                 onClick={() => setTab('resume')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold"
+                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
               >
                 📁 Resume Checker
               </button>
               <button 
                 onClick={() => setTab('parent')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold"
+                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
               >
                 👨‍👩‍👦 Parent Report
               </button>
@@ -345,20 +463,20 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
                 <button
                   onClick={() => {
                     onSelectTarget(match.id);
-                    setTab('reality');
+                    setTab('try_career');
                   }}
-                  className="text-cyber-neonCyan hover:underline flex items-center gap-0.5"
+                  className="text-cyber-neonCyan hover:underline flex items-center gap-0.5 cursor-pointer"
                 >
-                  Reality Check
+                  Try Career →
                 </button>
                 <button
                   onClick={() => {
                     onSelectTarget(match.id);
                     setTab('roadmap');
                   }}
-                  className="text-cyber-neonPurple hover:underline flex items-center gap-0.5"
+                  className="text-cyber-neonPurple hover:underline flex items-center gap-0.5 cursor-pointer"
                 >
-                  Build Roadmap
+                  Build Roadmap →
                 </button>
               </div>
             </div>
@@ -380,7 +498,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
               </div>
               <button 
                 onClick={() => setShowWhyModal(false)}
-                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -419,7 +537,7 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
             <div className="flex justify-end pt-2 border-t border-cyber-border">
               <button
                 onClick={() => setShowWhyModal(false)}
-                className="cyber-btn cyber-btn-purple px-5 py-2 rounded text-xs font-mono font-bold text-white"
+                className="cyber-btn cyber-btn-purple px-5 py-2 rounded text-xs font-mono font-bold text-white cursor-pointer"
               >
                 CLOSE EXPLANATION
               </button>
@@ -429,13 +547,5 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
       )}
 
     </div>
-  );
-}
-
-function ChevronRight({ size = 16, className = '' }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m9 18 6-6-6-6"/>
-    </svg>
   );
 }

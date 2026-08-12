@@ -158,7 +158,7 @@ export default function ProfileForm({ profileData = {}, onSave, isOnboarding = f
                   required
                   value={formData.fullName}
                   onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                  placeholder="e.g., Nova Kumar"
+                  placeholder="e.g., Nova"
                   className="w-full bg-cyber-dark border border-cyber-neonPurple/50 rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-cyber-neonPurple"
                 />
               </div>

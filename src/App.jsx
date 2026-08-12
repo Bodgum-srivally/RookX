@@ -10,20 +10,26 @@ import DecisionEngine from './components/DecisionEngine';
 import RealityCheck from './components/RealityCheck';
 import Simulator from './components/Simulator';
 import SkillGaps from './components/SkillGaps';
-import EducationPathway from './components/EducationPathway';
 import Roadmap from './components/Roadmap';
 import ResumeAnalyzer from './components/ResumeAnalyzer';
 import ParentMode from './components/ParentMode';
 import AIAssistant from './components/AIAssistant';
 import AccountModal from './components/AccountModal';
 import AuthModal from './components/AuthModal';
+
+// New Feature Components
+import TryBeforeYouCommit from './components/TryBeforeYouCommit';
+import CareerProgress from './components/CareerProgress';
+import RookXXP from './components/RookXXP';
+
 import { saveUserToDB, getUserFromDB, getAllUsersFromDB, saveSessionToDB } from './services/dbService';
+import { getLevelInfo, BADGES, evaluateBadges } from './utils/gamification';
 
 // Lucide Icons
 import { 
   Home, Activity, Compass, Layers, BarChart3, 
-  Target, GraduationCap, Calendar, FileText, Users, Sparkles, RefreshCw,
-  Sun, Moon, UserCheck, Lock, LogIn
+  Target, Calendar, FileText, Users, Sparkles, RefreshCw,
+  Sun, Moon, UserCheck, Lock, LogIn, Award, TrendingUp, X
 } from 'lucide-react';
 
 export default function App() {
@@ -32,6 +38,14 @@ export default function App() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
+
+  // Toast Notification state
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const triggerToast = (title, subtitle, icon = '🎉') => {
+    setToastMessage({ title, subtitle, icon });
+    setTimeout(() => setToastMessage(null), 4500);
+  };
 
   // Users Database in localStorage
   const [usersDb, setUsersDb] = useState(() => {
@@ -90,6 +104,24 @@ export default function App() {
     };
   });
 
+  // Gamification & XP State
+  const [gamificationState, setGamificationState] = useState(() => {
+    if (activeSession.isAuthenticated && activeSession.email && usersDb[activeSession.email]?.gamification) {
+      return usersDb[activeSession.email].gamification;
+    }
+    const saved = localStorage.getItem('rookx_gamification');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      xp: 450,
+      unlockedBadges: [],
+      triedSimulations: [],
+      completedTasks: [],
+      highestSimScore: 0
+    };
+  });
+
   // Default initial view to 'home'
   const [activeTab, setActiveTab] = useState('home');
 
@@ -116,15 +148,19 @@ export default function App() {
     initDB();
   }, []);
 
-  // Sync profile & assessment data to user database whenever modified
-  const syncActiveUserData = async (newProfile, newAssessment) => {
+  // Sync profile, assessment & gamification data to database
+  const syncActiveUserData = async (newProfile, newAssessment, newGamification) => {
+    const updatedGamification = newGamification || gamificationState;
+    localStorage.setItem('rookx_gamification', JSON.stringify(updatedGamification));
+
     if (activeSession.isAuthenticated && activeSession.email) {
       const email = activeSession.email;
       const updatedUser = {
         ...usersDb[email],
         email,
         profileData: newProfile || profileData,
-        assessmentScores: newAssessment || assessmentScores
+        assessmentScores: newAssessment || assessmentScores,
+        gamification: updatedGamification
       };
       const updatedDb = { ...usersDb, [email]: updatedUser };
       setUsersDb(updatedDb);
@@ -136,6 +172,48 @@ export default function App() {
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Central Gamification XP & Badge Award Handler
+  const handleAwardXP = (addedXp, reason, meta = {}) => {
+    setGamificationState(prevState => {
+      const oldLevel = getLevelInfo(prevState.xp).level;
+      const newXp = (prevState.xp || 0) + addedXp;
+      const newTriedSimulations = meta.simulationId 
+        ? Array.from(new Set([...(prevState.triedSimulations || []), meta.simulationId])) 
+        : (prevState.triedSimulations || []);
+      
+      const newCompletedTasks = meta.taskId 
+        ? Array.from(new Set([...(prevState.completedTasks || []), meta.taskId])) 
+        : (prevState.completedTasks || []);
+
+      const newHighestSimScore = Math.max(prevState.highestSimScore || 0, meta.simScore || 0);
+
+      const candidateState = {
+        ...prevState,
+        xp: newXp,
+        triedSimulations: newTriedSimulations,
+        completedTasks: newCompletedTasks,
+        highestSimScore: newHighestSimScore
+      };
+
+      // Check badge evaluation
+      const { unlockedBadges, newUnlocks } = evaluateBadges(candidateState, 54 + (newCompletedTasks.length * 5));
+      candidateState.unlockedBadges = unlockedBadges;
+
+      const newLevelObj = getLevelInfo(newXp);
+      if (newLevelObj.level > oldLevel) {
+        triggerToast(`LEVEL UP! REACHED LEVEL ${newLevelObj.level}`, `Title: ${newLevelObj.name}`, '🏆');
+      } else if (newUnlocks.length > 0) {
+        const badgeObj = BADGES.find(b => b.id === newUnlocks[0]);
+        triggerToast(`ACHIEVEMENT UNLOCKED!`, `${badgeObj ? badgeObj.name : 'New Badge'} (+${badgeObj ? badgeObj.xpReward : 100} XP)`, badgeObj ? badgeObj.icon : '🎉');
+      } else {
+        triggerToast(`+${addedXp} XP EARNED!`, reason, '⚡');
+      }
+
+      syncActiveUserData(null, null, candidateState);
+      return candidateState;
+    });
   };
 
   // Auth Handler: Login
@@ -153,6 +231,7 @@ export default function App() {
 
     if (user.profileData) setProfileData(user.profileData);
     if (user.assessmentScores) setAssessmentScores(user.assessmentScores);
+    if (user.gamification) setGamificationState(user.gamification);
 
     setShowAuthModal(false);
     setActiveTab('dashboard');
@@ -182,11 +261,20 @@ export default function App() {
       interests: { software_engineer: 80, data_scientist: 60, cybersecurity_analyst: 40, ui_ux_designer: 30 }
     };
 
+    const initialGamification = {
+      xp: 450,
+      unlockedBadges: [],
+      triedSimulations: [],
+      completedTasks: [],
+      highestSimScore: 0
+    };
+
     const newUserRecord = {
       email: regData.email,
       password: regData.password,
       profileData: newProfile,
-      assessmentScores: initialAssessment
+      assessmentScores: initialAssessment,
+      gamification: initialGamification
     };
 
     const updatedDb = {
@@ -203,6 +291,7 @@ export default function App() {
 
     setProfileData(newProfile);
     setAssessmentScores(initialAssessment);
+    setGamificationState(initialGamification);
     setShowAuthModal(false);
     setActiveTab('assessment');
     return true;
@@ -234,7 +323,7 @@ export default function App() {
       isOnboarded: true
     };
     setProfileData(newProfile);
-    syncActiveUserData(newProfile, null);
+    syncActiveUserData(newProfile, null, null);
     setActiveTab('dashboard');
   };
 
@@ -259,13 +348,15 @@ export default function App() {
 
     setProfileData(updatedProfile);
     setAssessmentScores(updatedAssessment);
-    syncActiveUserData(updatedProfile, updatedAssessment);
+    syncActiveUserData(updatedProfile, updatedAssessment, null);
+    handleAwardXP(100, 'Completed Roadmap Reassessment');
   };
 
   const handleAssessmentComplete = (skills, interests) => {
     const newScores = { skills, interests };
     setAssessmentScores(newScores);
-    syncActiveUserData(null, newScores);
+    syncActiveUserData(null, newScores, null);
+    handleAwardXP(100, 'Completed Career Fit Test');
     setActiveTab('dashboard');
   };
 
@@ -349,6 +440,7 @@ export default function App() {
             targetCareerId={targetCareerId}
             setTab={navigateTab}
             onSelectTarget={handleSelectTargetCareer}
+            gamificationState={gamificationState}
           />
         );
       case 'onboarding':
@@ -365,6 +457,37 @@ export default function App() {
           <Assessment 
             onComplete={handleAssessmentComplete}
             targetCareerId={targetCareerId}
+          />
+        );
+      case 'try_career':
+        return (
+          <TryBeforeYouCommit 
+            profile={profileData}
+            setTab={navigateTab}
+            onCompleteSimulation={(simId, score) => {
+              handleAwardXP(200, `Completed ${simId.replace('_', ' ')} Simulation`, { simulationId: simId, simScore: score });
+            }}
+          />
+        );
+      case 'progress':
+        return (
+          <CareerProgress 
+            profile={profileData}
+            assessment={assessmentScores}
+            targetCareerId={targetCareerId}
+            gamificationState={gamificationState}
+            setTab={navigateTab}
+            onCompleteActivity={(actId, boost, xp) => {
+              handleAwardXP(xp || 100, `Completed Booster Task`, { taskId: actId });
+            }}
+          />
+        );
+      case 'xp_badges':
+        return (
+          <RookXXP 
+            gamificationState={gamificationState}
+            readinessScore={54}
+            setTab={navigateTab}
           />
         );
       case 'decision':
@@ -400,13 +523,6 @@ export default function App() {
             targetCareerId={targetCareerId}
           />
         );
-      case 'education':
-        return (
-          <EducationPathway 
-            profile={profileData} 
-            targetCareerId={targetCareerId}
-          />
-        );
       case 'roadmap':
         return (
           <Roadmap 
@@ -415,6 +531,7 @@ export default function App() {
             targetCareerId={targetCareerId}
             setTab={navigateTab}
             onUpdateSkills={handleUpdateSkillsFromRoadmap}
+            onAwardXP={handleAwardXP}
           />
         );
       case 'resume':
@@ -440,17 +557,21 @@ export default function App() {
     ? profileData.fullName.split(' ')[0] 
     : 'Sign In';
 
+  const levelInfo = getLevelInfo(gamificationState.xp || 0);
+
   // Navigation Items
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'dashboard', label: 'Overview Hub', icon: Activity },
+    { id: 'try_career', label: 'Try Before You Commit', icon: Sparkles },
+    { id: 'progress', label: 'Career Progress', icon: TrendingUp },
+    { id: 'xp_badges', label: 'RookX XP & Badges', icon: Award },
     { id: 'assessment', label: 'Career Fit Test', icon: Compass },
     { id: 'decision', label: 'Compare Careers', icon: Layers },
     { id: 'reality', label: 'Reality Check', icon: BarChart3 },
     { id: 'simulator', label: 'What-If Simulator', icon: Sparkles },
     { id: 'gaps', label: 'Skills to Learn', icon: Target },
     { id: 'roadmap', label: '4-Week Action Plan', icon: Calendar },
-    { id: 'education', label: 'Colleges & Exams', icon: GraduationCap },
     { id: 'resume', label: 'Resume Checker', icon: FileText },
     { id: 'parent', label: 'Parent Report', icon: Users },
   ];
@@ -475,10 +596,21 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 text-xs">
+            
+            {/* Gamification XP Level Pill */}
+            <button
+              onClick={() => navigateTab('xp_badges')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-xs font-bold text-white hover:bg-cyber-neonPurple/25 transition-all cursor-pointer shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+              title="View RookX XP & Badges"
+            >
+              <Award size={14} className="text-cyber-neonPurple animate-pulse" />
+              <span>LVL {levelInfo.level} • {levelInfo.totalXp.toLocaleString()} XP</span>
+            </button>
+
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-cyber-border bg-cyber-dark/40 text-xs font-bold text-white hover:border-cyber-neonPurple transition-all"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-cyber-border bg-cyber-dark/40 text-xs font-bold text-white hover:border-cyber-neonPurple transition-all cursor-pointer"
               title="Toggle Dark / Light Mode"
             >
               {theme === 'dark' ? (
@@ -498,7 +630,7 @@ export default function App() {
             {activeSession.isAuthenticated ? (
               <button 
                 onClick={() => setShowAccountModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-white hover:bg-cyber-neonPurple/25 transition-all font-bold"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-white hover:bg-cyber-neonPurple/25 transition-all font-bold cursor-pointer"
               >
                 <UserCheck size={15} className="text-cyber-neonPurple" />
                 <span>{userDisplayName}</span>
@@ -509,7 +641,7 @@ export default function App() {
                   setAuthModalMode('login');
                   setShowAuthModal(true);
                 }}
-                className="cyber-btn cyber-btn-purple px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-md"
+                className="cyber-btn cyber-btn-purple px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <LogIn size={14} /> SIGN IN
               </button>
@@ -533,7 +665,7 @@ export default function App() {
                   key={item.id}
                   onClick={() => navigateTab(item.id)}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left cursor-pointer
                     ${isActive 
                       ? 'bg-cyber-neonPurple/20 border border-cyber-neonPurple/60 text-white border-glow-purple' 
                       : 'text-slate-400 hover:bg-cyber-dark/40 hover:text-slate-200 border border-transparent'}
@@ -590,6 +722,31 @@ export default function App() {
           onRegister={handleRegister}
           onClose={() => setShowAuthModal(false)}
         />
+      )}
+
+      {/* FLOATING ACHIEVEMENT / XP TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+          <div className="glass-panel border-glow-purple p-4 rounded-xl shadow-[0_0_25px_rgba(168,85,247,0.5)] bg-cyber-dark/95 flex items-center gap-3 border border-cyber-neonPurple">
+            <div className="text-2xl p-2 rounded-lg bg-cyber-neonPurple/20">
+              {toastMessage.icon}
+            </div>
+            <div>
+              <span className="text-xs font-extrabold text-white block uppercase tracking-wider">
+                {toastMessage.title}
+              </span>
+              <span className="text-xs text-cyber-neonCyan font-bold block">
+                {toastMessage.subtitle}
+              </span>
+            </div>
+            <button 
+              onClick={() => setToastMessage(null)}
+              className="text-slate-400 hover:text-white p-1 ml-2"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

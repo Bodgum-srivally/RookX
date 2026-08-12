@@ -127,12 +127,12 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* 7 MAJOR ENGINES GRID */}
+      {/* 6 MAJOR ENGINES GRID */}
       <section className="space-y-6">
         <div className="text-center space-y-2">
           <span className="hud-label text-cyber-neonPurple">PRODUCT ARCHITECTURE</span>
           <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-wide">
-            7 Major Career Decision Engines
+            6 Major Career Decision Engines
           </h2>
         </div>
 
@@ -187,13 +187,13 @@ export default function HomePage({
             </p>
           </div>
 
-          <div className="glass-panel border-glow-cyan p-6 rounded-xl space-y-3 cursor-pointer hover:border-cyber-neonCyan" onClick={() => setTab && setTab('education')}>
+          <div className="glass-panel border-glow-cyan p-6 rounded-xl space-y-3 cursor-pointer hover:border-cyber-neonCyan" onClick={() => setTab && setTab('roadmap')}>
             <div className="p-2.5 rounded-lg bg-cyber-neonCyan/15 text-cyber-neonCyan w-fit">
-              <GraduationCap size={20} />
+              <Calendar size={20} />
             </div>
-            <h3 className="text-sm font-bold text-white">6. Education & Scholarships</h3>
+            <h3 className="text-sm font-bold text-white">6. 4-Week Action Roadmap</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Connects careers to college degree programs filtered by budget/location preferences, entrance exams, and verified scholarships.
+              Generates a personalized 4-week task plan based on your priority skill gaps with weekly milestones and post-roadmap reassessment.
             </p>
           </div>
         </div>

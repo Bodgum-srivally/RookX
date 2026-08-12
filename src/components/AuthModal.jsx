@@ -111,7 +111,7 @@ export default function AuthModal({ onLogin, onRegister, onClose, initialMode = 
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g., Nova Kumar"
+                  placeholder="e.g., Nova"
                   className="w-full bg-cyber-dark border border-cyber-border rounded-xl pl-9 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-cyber-neonPurple"
                 />
               </div>

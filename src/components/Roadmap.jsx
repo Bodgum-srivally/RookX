@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { CAREER_LIST } from '../data/careerData';
 import { 
   Calendar, Award, BookOpen, CheckSquare, Square, 
-  Sparkles, ArrowRight, CheckCircle2, TrendingUp, RefreshCw, Layers, FileText, ChevronRight
+  Sparkles, ArrowRight, CheckCircle2, TrendingUp, RefreshCw, Layers, FileText, ChevronRight, Zap, Clock
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
-export default function Roadmap({ profile, assessment, targetCareerId, setTab, onUpdateSkills }) {
+export default function Roadmap({ profile, assessment, targetCareerId, setTab, onUpdateSkills, onAwardXP }) {
   const career = CAREER_LIST.find(c => c.id === targetCareerId) || CAREER_LIST[0];
 
   // State: active view ('roadmap', 'reassessment', 'results')
@@ -56,7 +57,6 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
   const gap2 = sortedGaps[1] || { name: 'Data Structures & Algorithms', currentVal: 40, gap: 25 };
   const gap3 = sortedGaps[2] || { name: 'System Tools & Git', currentVal: 50, gap: 15 };
 
-  // Calculate baseline readiness score
   const getBaselineReadiness = () => {
     const s1 = getBlendedMetric(profile.skills?.coding, assessment.skills?.coding);
     const s2 = getBlendedMetric(profile.skills?.sql, assessment.skills?.sql);
@@ -66,12 +66,10 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
   };
   const baselineReadiness = getBaselineReadiness();
 
-  // Load active roadmap iteration from localStorage
   const [roadmapIteration, setRoadmapIteration] = useState(() => {
     return Number(localStorage.getItem(`roadmap_iter_${career.id}`)) || 1;
   });
 
-  // Load completed tasks from localStorage
   const [completedTasks, setCompletedTasks] = useState(() => {
     const saved = localStorage.getItem(`roadmap_tasks_${career.id}_v${roadmapIteration}`);
     if (saved) {
@@ -84,7 +82,6 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     return {};
   });
 
-  // Load roadmap history
   const [roadmapHistory, setRoadmapHistory] = useState(() => {
     const saved = localStorage.getItem(`roadmap_history_${career.id}`);
     if (saved) {
@@ -97,6 +94,8 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     return [];
   });
 
+  const [resultsData, setResultsData] = useState(null);
+
   useEffect(() => {
     localStorage.setItem(`roadmap_tasks_${career.id}_v${roadmapIteration}`, JSON.stringify(completedTasks));
   }, [completedTasks, career.id, roadmapIteration]);
@@ -105,33 +104,33 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     localStorage.setItem(`roadmap_history_${career.id}`, JSON.stringify(roadmapHistory));
   }, [roadmapHistory, career.id]);
 
-  // Construct progressive 4-week tasks based on actual skill gaps
+  // Structured action plan tasks with skill tags, time estimates, and XP rewards
   const getTasksForCareer = () => {
     return [
       {
         weekNum: 1,
-        title: "WEEK 1 — FOUNDATION",
-        objective: `Build the missing core fundamentals of ${gap1.name} and ${gap2.name}.`,
-        whyMatters: "Solid fundamentals ensure fast progress without confusion.",
+        title: "WEEK 1 — FOUNDATIONS & CORE CONCEPTS",
+        objective: `Focus on closing initial priority gaps: ${gap1.name} and ${gap2.name}.`,
+        whyMatters: "Building strong fundamentals prevents compounding errors later in your career.",
         timeEst: "3-4 Hours",
         tasks: [
-          `Complete ${gap1.name} syntax, variables, and function exercises`,
-          `Set up local workspace for ${gap1.name} development`,
-          `Solve 5 beginner logic & coding problems covering ${gap2.name}`,
-          `Review core workflow documentation for ${gap3.name}`
+          { title: `Complete fundamental tutorial modules for ${gap1.name}`, skill: gap1.name, time: "45 min", xp: 50, readiness: "+2%" },
+          { title: `Setup local development environment & version control workspace`, skill: "Dev Setup", time: "30 min", xp: 50, readiness: "+2%" },
+          { title: `Solve 5 beginner logic & coding problems covering ${gap2.name}`, skill: gap2.name, time: "60 min", xp: 100, readiness: "+3%" },
+          { title: `Review core workflow documentation for ${gap3.name}`, skill: gap3.name, time: "30 min", xp: 50, readiness: "+2%" }
         ]
       },
       {
         weekNum: 2,
-        title: "WEEK 2 — PRACTICE",
-        objective: `Apply fundamentals through guided exercises and problem sets.`,
+        title: "WEEK 2 — GUIDED PRACTICE & PROBLEM SETS",
+        objective: `Apply fundamentals through targeted exercises and problem sets.`,
         whyMatters: "Hands-on practice turns theory into real working confidence.",
         timeEst: "4-5 Hours",
         tasks: [
-          `Solve 10 guided challenges targeting ${gap1.name}`,
-          `Implement data transformations using ${gap2.name}`,
-          `Practice branch creation and commits using ${gap3.name}`,
-          `Build a small interactive test script`
+          { title: `Solve 10 guided challenges targeting ${gap1.name}`, skill: gap1.name, time: "60 min", xp: 100, readiness: "+3%" },
+          { title: `Implement data queries & transformations using ${gap2.name}`, skill: gap2.name, time: "45 min", xp: 50, readiness: "+2%" },
+          { title: `Practice branch creation and commits using ${gap3.name}`, skill: gap3.name, time: "30 min", xp: 50, readiness: "+2%" },
+          { title: `Build a small interactive test script`, skill: "Practical Code", time: "45 min", xp: 75, readiness: "+3%" }
         ]
       },
       {
@@ -141,23 +140,23 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
         whyMatters: "Employers evaluate real working code and projects.",
         timeEst: "5-6 Hours",
         tasks: [
-          `Build a working mini-project: "${career.recommendedProjects[0]?.title || 'Portfolio Project'}"`,
-          `Integrate ${gap1.name} component flow and state management`,
-          `Store project data using ${gap2.name}`,
-          `Push project code to GitHub with a clean README file`
+          { title: `Build working project: "${career.recommendedProjects[0]?.title || 'Portfolio Project'}"`, skill: "Portfolio Project", time: "120 min", xp: 250, readiness: "+8%" },
+          { title: `Integrate ${gap1.name} component flow and state management`, skill: gap1.name, time: "45 min", xp: 75, readiness: "+3%" },
+          { title: `Store project data cleanly using ${gap2.name}`, skill: gap2.name, time: "45 min", xp: 50, readiness: "+2%" },
+          { title: `Push project code to GitHub with a clean README file`, skill: "Git & Documentation", time: "30 min", xp: 75, readiness: "+3%" }
         ]
       },
       {
         weekNum: 4,
-        title: "WEEK 4 — VALIDATION",
+        title: "WEEK 4 — VALIDATION & REASSESSMENT",
         objective: `Test your understanding and measure your progress.`,
         whyMatters: "Validating your gains proves readiness and highlights next steps.",
         timeEst: "3-4 Hours",
         tasks: [
-          `Perform code cleanup and verify all feature endpoints`,
-          `Review project architecture with the AI mentor`,
-          `Update resume with new skills & project link`,
-          `Complete the Post-Roadmap Progress Reassessment`
+          { title: `Perform code cleanup and verify all feature endpoints`, skill: "Code Review", time: "45 min", xp: 75, readiness: "+3%" },
+          { title: `Review project architecture with the AI mentor`, skill: "System Architecture", time: "30 min", xp: 50, readiness: "+2%" },
+          { title: `Update resume with new skills & project link`, skill: "Career Prep", time: "30 min", xp: 75, readiness: "+3%" },
+          { title: `Complete the Post-Roadmap Progress Reassessment`, skill: "Reassessment", time: "20 min", xp: 100, readiness: "+5%" }
         ]
       }
     ];
@@ -165,12 +164,21 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
 
   const weeklySchedule = getTasksForCareer();
 
-  const toggleTask = (weekIdx, taskIdx) => {
+  const toggleTask = (weekIdx, taskIdx, taskObj) => {
     const key = `${weekIdx}_${taskIdx}`;
+    const isNowDone = !completedTasks[key];
+
     setCompletedTasks(prev => ({
       ...prev,
-      [key]: !prev[key]
+      [key]: isNowDone
     }));
+
+    if (isNowDone) {
+      confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
+      if (onAwardXP) {
+        onAwardXP(taskObj.xp || 50, `Completed Roadmap Task: ${taskObj.title}`, { taskId: `roadmap_${weekIdx}_${taskIdx}` });
+      }
+    }
   };
 
   // Progress Calculations
@@ -189,7 +197,6 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     return isWeekComplete(weekNum - 1);
   };
 
-  // Reassessment Questions targeting trained skills
   const reassessmentQuestions = [
     {
       id: 'q1',
@@ -241,32 +248,29 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     }
   ];
 
-  const handleSelectReassessmentAnswer = (qId, optionIdx) => {
+  const handleReassessmentAnswer = (qId, optionIdx) => {
     setReassessmentAnswers(prev => ({
       ...prev,
       [qId]: optionIdx
     }));
   };
 
-  // Process Reassessment Results
-  const [resultsData, setResultsData] = useState(null);
-
-  const handleFinishReassessment = () => {
+  const handleCalculateReassessmentResults = () => {
     let correctCount = 0;
-    reassessmentQuestions.forEach((q) => {
+    reassessmentQuestions.forEach(q => {
       if (reassessmentAnswers[q.id] === q.correct) {
         correctCount += 1;
       }
     });
 
-    const scoreBoost = Math.round((correctCount / reassessmentQuestions.length) * 22) + 8;
-    const afterGap1 = Math.min(95, gap1.currentVal + scoreBoost);
-    const afterGap2 = Math.min(92, gap2.currentVal + Math.round(scoreBoost * 0.9));
-    const afterGap3 = Math.min(98, gap3.currentVal + Math.round(scoreBoost * 1.1));
+    const scoreRatio = correctCount / reassessmentQuestions.length;
+    const gain1 = Math.round(15 * scoreRatio + 5);
+    const gain2 = Math.round(12 * scoreRatio + 4);
+    const gain3 = Math.round(10 * scoreRatio + 3);
 
-    const gain1 = afterGap1 - gap1.currentVal;
-    const gain2 = afterGap2 - gap2.currentVal;
-    const gain3 = afterGap3 - gap3.currentVal;
+    const afterGap1 = Math.min(95, gap1.currentVal + gain1);
+    const afterGap2 = Math.min(95, gap2.currentVal + gain2);
+    const afterGap3 = Math.min(95, gap3.currentVal + gain3);
 
     const afterReadiness = Math.min(98, baselineReadiness + Math.round((gain1 + gain2 + gain3) / 3));
     const overallGain = afterReadiness - baselineReadiness;
@@ -287,7 +291,6 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     setResultsData(computedResults);
     setViewState('results');
 
-    // UPDATE ACTUAL USER SKILL METRICS SO NEXT ROADMAP CALCULATES NEW TOP GAPS!
     if (onUpdateSkills) {
       onUpdateSkills({
         coding: afterGap1,
@@ -296,7 +299,6 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
       });
     }
 
-    // Save to Roadmap History
     const historyItem = {
       id: Date.now(),
       iteration: roadmapIteration,
@@ -317,16 +319,16 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
   };
 
   return (
-    <div className="glass-panel border-glow-purple p-6 rounded-xl relative scanlines space-y-6 animate-fadeIn font-mono">
+    <div className="glass-panel border-glow-purple p-6 rounded-xl relative scanlines space-y-6 animate-fadeIn font-mono pb-12">
       
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-cyber-border pb-4 gap-3">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Calendar className="text-cyber-neonPurple animate-pulse" />
-            PERSONALIZED ACTION ROADMAP
+            PERSONALIZED 4-WEEK ACTION ROADMAP
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Adaptive 4-week learning pathway targeting identified skill gaps</p>
+          <p className="text-xs text-slate-400 mt-0.5">Interactive skill development roadmap with XP & Readiness rewards</p>
         </div>
         <div className="font-mono text-right shrink-0">
           <div className="text-xs text-slate-400">Target Career Goal</div>
@@ -402,7 +404,7 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
                   key={w.weekNum}
                   onClick={() => unlocked && setActiveWeek(w.weekNum)}
                   className={`
-                    p-3 rounded-lg border text-left transition-all relative font-mono
+                    p-3 rounded-lg border text-left transition-all relative font-mono cursor-pointer
                     ${complete 
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-white' 
                       : activeWeek === w.weekNum 
@@ -421,7 +423,7 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
             })}
           </div>
 
-          {/* ACTIVE WEEK CONTENT */}
+          {/* ACTIVE WEEK CONTENT WITH ENHANCED TASK ITEMS (Part 10 Requirement) */}
           <div className="space-y-4">
             {weeklySchedule.map((weekData) => {
               if (weekData.weekNum !== activeWeek) return null;
@@ -447,245 +449,194 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
                   </div>
 
                   {/* Tasks Checklist Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     {weekData.tasks.map((task, taskIdx) => {
                       const isChecked = !!completedTasks[`${weekData.weekNum - 1}_${taskIdx}`];
                       return (
                         <div 
                           key={taskIdx}
-                          onClick={() => toggleTask(weekData.weekNum - 1, taskIdx)}
+                          onClick={() => toggleTask(weekData.weekNum - 1, taskIdx, task)}
                           className={`
-                            p-3.5 rounded-lg border cursor-pointer select-none transition-all flex items-start gap-3
+                            p-4 rounded-xl border cursor-pointer select-none transition-all flex flex-col justify-between space-y-3
                             ${isChecked 
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-slate-300' 
-                              : 'border-cyber-border bg-cyber-dark/40 text-slate-200 hover:border-slate-600 hover:text-white'}
+                              ? 'border-emerald-500/40 bg-emerald-500/10 text-white' 
+                              : 'border-cyber-border bg-cyber-dark/40 hover:border-cyber-neonPurple hover:bg-cyber-neonPurple/5 text-slate-200'}
                           `}
                         >
-                          <div className="mt-0.5 shrink-0">
-                            {isChecked ? (
-                              <CheckSquare className="text-emerald-400" size={18} />
-                            ) : (
-                              <Square className="text-slate-500" size={18} />
-                            )}
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 shrink-0 ${isChecked ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {isChecked ? <CheckCircle2 size={18} /> : <Square size={18} />}
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className={`text-xs font-bold block ${isChecked ? 'line-through text-slate-300' : 'text-white'}`}>
+                                {task.title}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold pt-1">
+                                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                  Skill: {task.skill}
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
+                                  <Clock size={10} /> {task.time}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-xs leading-relaxed font-bold">{task}</span>
+
+                          <div className="pt-2 border-t border-cyber-border/40 flex justify-between items-center text-xs">
+                            <div className="flex gap-2">
+                              <span className="text-purple-400 font-bold">{task.xp} XP</span>
+                              <span className="text-emerald-400 font-bold">{task.readiness} Readiness</span>
+                            </div>
+
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
+                              isChecked 
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                                : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                            }`}>
+                              {isChecked ? '✓ Completed' : 'Complete Task'}
+                            </span>
+                          </div>
+
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* MILESTONE CARD WHEN WEEK IS COMPLETE */}
-                  {complete && (
-                    <div className="p-4 border border-emerald-500/40 bg-emerald-500/10 rounded-xl space-y-3 animate-fadeIn">
-                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                        <CheckCircle2 size={18} /> WEEK {weekData.weekNum} COMPLETE ✓
-                      </div>
-                      <p className="text-xs text-slate-200">
-                        You've completed all tasks for this stage! Skills practiced: {gap1.name}, {gap2.name}.
-                      </p>
+                  {/* Complete Week Action Banner */}
+                  <div className="pt-3 flex justify-between items-center border-t border-cyber-border/40">
+                    <span className="text-xs text-slate-400">
+                      {complete ? '🎉 Week Complete! Unlock next week or take reassessment.' : 'Complete all tasks to unlock progress reassessment.'}
+                    </span>
 
-                      {weekData.weekNum < 4 ? (
-                        <button
-                          onClick={() => setActiveWeek(weekData.weekNum + 1)}
-                          className="cyber-btn cyber-btn-purple px-4 py-2 rounded text-xs font-bold text-white flex items-center gap-2"
-                        >
-                          START WEEK {weekData.weekNum + 1} <ArrowRight size={14} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setViewState('reassessment')}
-                          className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white flex items-center gap-2 animate-pulse"
-                        >
-                          🎉 TAKE PROGRESS REASSESSMENT <ArrowRight size={16} />
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    {complete && activeWeek === 4 && (
+                      <button
+                        onClick={() => setViewState('reassessment')}
+                        className="cyber-btn cyber-btn-purple px-5 py-2 rounded text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-lg animate-pulse"
+                      >
+                        TAKE REASSESSMENT TEST <ArrowRight size={14} />
+                      </button>
+                    )}
+                  </div>
 
                 </div>
               );
             })}
           </div>
 
-          {/* WEEK 4 COMPLETED BANNER (IF ALL 4 WEEKS FINISHED) */}
-          {overallProgressPct === 100 && viewState === 'roadmap' && (
-            <div className="p-6 border border-cyber-neonPurple bg-cyber-neonPurple/10 rounded-xl text-center space-y-4 animate-fadeIn">
-              <h3 className="text-xl font-bold text-white">🎉 4-WEEK ROADMAP COMPLETE!</h3>
-              <p className="text-xs text-slate-300 max-w-md mx-auto">
-                You've completed your targeted learning roadmap. Now let's measure what changed and evaluate your progress gains.
-              </p>
-              <button
-                onClick={() => setViewState('reassessment')}
-                className="cyber-btn cyber-btn-purple px-8 py-3 rounded-lg text-sm font-bold text-white inline-flex items-center gap-2"
-              >
-                TAKE PROGRESS REASSESSMENT <ArrowRight size={16} />
-              </button>
-            </div>
-          )}
-
         </div>
       )}
 
-      {/* VIEW STATE 2: POST-ROADMAP REASSESSMENT QUIZ */}
+      {/* VIEW STATE 2: REASSESSMENT TEST */}
       {viewState === 'reassessment' && (
-        <div className="space-y-6 animate-fadeIn">
-          <div className="border-b border-cyber-border pb-3">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Sparkles className="text-cyber-neonPurple" size={18} />
-              Post-Roadmap Progress Reassessment
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Answer 4 targeted questions to evaluate the skills you trained over the past 4 weeks.</p>
+        <div className="space-y-6 max-w-2xl mx-auto animate-fadeIn">
+          <div className="text-center space-y-2 border-b border-cyber-border pb-4">
+            <span className="text-xs font-bold text-cyber-neonPurple uppercase">POST-ROADMAP EVALUATION</span>
+            <h3 className="text-xl font-bold text-white">4-Week Skill Reassessment Test</h3>
+            <p className="text-xs text-slate-400">
+              Answer 4 questions targeting your trained gaps ({gap1.name}, {gap2.name}, {gap3.name}) to verify skill growth.
+            </p>
           </div>
 
           <div className="space-y-6">
-            {reassessmentQuestions.map((q, qIdx) => (
+            {reassessmentQuestions.map((q, idx) => (
               <div key={q.id} className="p-4 border border-cyber-border bg-cyber-dark/40 rounded-xl space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-cyber-neonPurple font-bold uppercase">Question {qIdx + 1} • {q.skill}</span>
+                  <span className="text-[10px] font-bold text-cyber-neonCyan uppercase">QUESTION {idx + 1} • {q.skill}</span>
                 </div>
                 <h4 className="text-xs font-bold text-white">{q.question}</h4>
 
-                <div className="grid grid-cols-1 gap-2 pt-1">
-                  {q.options.map((opt, optIdx) => {
-                    const selected = reassessmentAnswers[q.id] === optIdx;
-                    return (
-                      <button
-                        key={optIdx}
-                        type="button"
-                        onClick={() => handleSelectReassessmentAnswer(q.id, optIdx)}
-                        className={`
-                          p-3 rounded-lg border text-left text-xs transition-all flex items-center gap-2 font-mono
-                          ${selected 
-                            ? 'border-cyber-neonPurple bg-cyber-neonPurple/20 text-white font-bold' 
-                            : 'border-cyber-border bg-cyber-dark/60 text-slate-300 hover:border-slate-600'}
-                        `}
-                      >
-                        <span className="w-5 h-5 rounded-full border border-cyber-border flex items-center justify-center text-[10px] shrink-0">
-                          {String.fromCharCode(65 + optIdx)}
-                        </span>
-                        <span>{opt}</span>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-2 pt-1">
+                  {q.options.map((opt, oIdx) => (
+                    <button
+                      key={oIdx}
+                      onClick={() => handleReassessmentAnswer(q.id, oIdx)}
+                      className={`
+                        w-full text-left p-3 rounded-lg border text-xs font-mono transition-all cursor-pointer
+                        ${reassessmentAnswers[q.id] === oIdx
+                          ? 'border-cyber-neonPurple bg-cyber-neonPurple/20 text-white font-bold'
+                          : 'border-cyber-border bg-cyber-dark/30 text-slate-300 hover:border-slate-700'}
+                      `}
+                    >
+                      {opt}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="flex justify-end pt-4 border-t border-cyber-border">
+          <div className="flex justify-between items-center pt-4 border-t border-cyber-border">
             <button
-              onClick={handleFinishReassessment}
-              disabled={Object.keys(reassessmentAnswers).length < reassessmentQuestions.length}
-              className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              onClick={() => setViewState('roadmap')}
+              className="text-xs text-slate-400 hover:text-white cursor-pointer"
             >
-              SUBMIT & SEE IMPROVEMENT REPORT <ArrowRight size={16} />
+              ← Back to Roadmap
+            </button>
+
+            <button
+              onClick={handleCalculateReassessmentResults}
+              disabled={Object.keys(reassessmentAnswers).length < reassessmentQuestions.length}
+              className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white cursor-pointer disabled:opacity-50"
+            >
+              CALCULATE SKILL GAINS →
             </button>
           </div>
         </div>
       )}
 
-      {/* VIEW STATE 3: BEFORE VS AFTER IMPROVEMENT REPORT & NEXT PHASE */}
+      {/* VIEW STATE 3: RESULTS SUMMARY REPORT */}
       {viewState === 'results' && resultsData && (
-        <div className="space-y-6 animate-fadeIn">
-          
-          <div className="p-6 border border-emerald-500/40 bg-emerald-500/10 rounded-xl space-y-4 text-center">
-            <h3 className="text-xl font-bold text-white">YOUR 4-WEEK PROGRESS REPORT</h3>
-            <p className="text-xs text-slate-300 max-w-lg mx-auto">
-              Here is your measured skill gain comparing your scores before and after completing your 4-week roadmap.
+        <div className="space-y-6 max-w-2xl mx-auto animate-fadeIn">
+          <div className="text-center space-y-2 border-b border-cyber-border pb-4">
+            <span className="text-xs font-bold text-emerald-400 uppercase">REASSESSMENT COMPLETE ✓</span>
+            <h3 className="text-2xl font-extrabold text-white">Skill Growth Verified!</h3>
+            <p className="text-xs text-slate-300">
+              You answered {resultsData.correctCount} of {resultsData.totalCount} questions correctly.
             </p>
-
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/50 bg-emerald-500/20 text-emerald-400 text-sm font-bold">
-              <TrendingUp size={18} /> Overall Readiness: {resultsData.beforeReadiness} → {resultsData.afterReadiness} (+{resultsData.overallGain} points)
-            </div>
           </div>
 
-          {/* BEFORE VS AFTER SKILL COMPARISON */}
+          <div className="p-5 border border-emerald-500/40 bg-emerald-500/10 rounded-xl text-center space-y-2">
+            <span className="text-[10px] text-slate-400 uppercase block">OVERALL CAREER READINESS BOOST</span>
+            <div className="flex justify-center items-baseline gap-3">
+              <span className="text-slate-400 text-lg line-through">{resultsData.beforeReadiness}%</span>
+              <ArrowRight className="text-emerald-400" size={20} />
+              <span className="text-3xl font-extrabold text-emerald-400">{resultsData.afterReadiness}%</span>
+            </div>
+            <span className="text-xs text-emerald-400 font-bold block">+{resultsData.overallGain}% Career Readiness Improvement</span>
+          </div>
+
           <div className="space-y-3">
-            <h4 className="hud-label text-slate-300">Measured Skill Improvements</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {resultsData.gaps.map((item, idx) => (
-                <div key={idx} className="p-4 border border-cyber-border bg-cyber-dark/40 rounded-xl space-y-2 font-mono">
-                  <span className="text-xs font-bold text-white block">{item.name}</span>
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>Before: <strong>{item.before}%</strong></span>
-                    <span>After: <strong className="text-white">{item.after}%</strong></span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-cyber-border">
-                    <div 
-                      className="bg-emerald-400 h-full transition-all duration-500"
-                      style={{ width: `${item.after}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] text-emerald-400 font-bold block text-right">+{item.gain} points gain</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ADAPTIVE NEXT PHASE OUTCOME */}
-          <div className="p-6 border border-cyber-border bg-cyber-dark/50 rounded-xl space-y-4">
-            {resultsData.afterReadiness < 70 ? (
-              /* OUTCOME A: SKILL GAPS STILL NEED WORK */
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">NEXT ROADMAP RECOMMENDED</span>
-                <h4 className="text-base font-bold text-white">You improved significantly, but these areas still need attention:</h4>
-                <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
-                  <li>{gap1.name} (Advanced exercises & projects)</li>
-                  <li>{gap2.name} (Problem complexity & time efficiency)</li>
-                </ul>
-                <button
-                  onClick={handleGenerateNextRoadmap}
-                  className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white flex items-center gap-2 mt-2"
-                >
-                  GENERATE NEXT 4-WEEK PLAN <ArrowRight size={14} />
-                </button>
-              </div>
-            ) : resultsData.afterReadiness < 85 ? (
-              /* OUTCOME B: STRONG LEVEL REACHED */
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-cyber-neonCyan uppercase tracking-wider block">CAREER READINESS IMPROVED ✓</span>
-                <h4 className="text-base font-bold text-white">You're now strongly aligned with your target career ({career.name}).</h4>
-                <p className="text-xs text-slate-300">Recommended next step: <strong>BUILD & PROVE</strong> — Apply your skills in portfolio projects.</p>
-                <button
-                  onClick={() => setTab('reality')}
-                  className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white flex items-center gap-2 mt-2"
-                >
-                  START PROJECT CHALLENGE <ArrowRight size={14} />
-                </button>
-              </div>
-            ) : (
-              /* OUTCOME C: CAREER LAUNCH READY */
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">NEXT PHASE: CAREER LAUNCH</span>
-                <h4 className="text-base font-bold text-white">Your skill foundation is strong! You are ready for placement preparation.</h4>
-                <p className="text-xs text-slate-300">Recommended next step: Resume optimization, portfolio showcase, and mock interview practice.</p>
-                <button
-                  onClick={() => setTab('resume')}
-                  className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white flex items-center gap-2 mt-2"
-                >
-                  START CAREER PREPARATION <ArrowRight size={14} />
-                </button>
-              </div>
-            )}
-          </div>
-
-        </div>
-      )}
-
-      {/* ROADMAP HISTORY SECTION */}
-      {roadmapHistory.length > 0 && (
-        <div className="pt-4 border-t border-cyber-border space-y-3 font-mono">
-          <span className="hud-label text-slate-400 font-bold">ROADMAP HISTORY</span>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {roadmapHistory.map((h) => (
-              <div key={h.id} className="p-3 border border-cyber-border/60 bg-cyber-dark/30 rounded-lg flex justify-between items-center">
+            <span className="text-xs font-bold text-white uppercase block">Verified Skill Improvements:</span>
+            {resultsData.gaps.map((g, idx) => (
+              <div key={idx} className="p-3.5 border border-cyber-border bg-cyber-dark/40 rounded-xl flex justify-between items-center">
                 <div>
-                  <div className="text-xs font-bold text-white">{h.title}</div>
-                  <div className="text-[10px] text-slate-400">Completed: {h.completedDate}</div>
+                  <span className="text-xs font-bold text-white block">{g.name}</span>
+                  <span className="text-[10px] text-slate-400">Baseline: {g.before}%</span>
                 </div>
-                <span className="text-xs text-emerald-400 font-bold">+{h.overallGain} Readiness</span>
+
+                <div className="text-right">
+                  <span className="text-sm font-extrabold text-cyber-neonCyan">{g.after}%</span>
+                  <span className="text-[10px] text-emerald-400 block font-bold">+{g.gain}%</span>
+                </div>
               </div>
             ))}
+          </div>
+
+          <div className="flex justify-between items-center pt-4 border-t border-cyber-border">
+            <button
+              onClick={() => setViewState('roadmap')}
+              className="text-xs text-slate-400 hover:text-white cursor-pointer"
+            >
+              View Roadmap
+            </button>
+
+            <button
+              onClick={handleGenerateNextRoadmap}
+              className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white cursor-pointer"
+            >
+              GENERATE ROADMAP ITERATION #{roadmapIteration + 1} →
+            </button>
           </div>
         </div>
       )}
