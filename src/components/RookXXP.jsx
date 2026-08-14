@@ -4,7 +4,7 @@ import {
   Flame, Target, Star, ChevronRight, RotateCcw, Brain, RefreshCw, HelpCircle, AlertCircle, ArrowLeft
 } from 'lucide-react';
 import { getLevelInfo, XP_LEVELS, BADGES } from '../utils/gamification';
-import { generateAIQuestions } from '../services/aiQuestionService';
+import { generateAIQuestions, getLevelDifficultyTier } from '../services/aiQuestionService';
 import { getCareerRoadmap, reorderRoadmapByFirstSkill } from '../data/careerRoadmaps';
 
 export default function RookXXP({ gamificationState, readinessScore = 54, setTab, onAwardXP, targetCareerId = 'software_engineer' }) {
@@ -63,9 +63,9 @@ export default function RookXXP({ gamificationState, readinessScore = 54, setTab
       category: lvlData.skillId,
       career: targetCareerId.replace('_', ' '),
       roadmapWeek: `Level ${lvlNum} (${lvlData.skillName})`,
+      quizLevel: lvlNum,
       weeklyTasks: lvlData.topics || [],
-      difficulty: lvlData.difficulty || 'Easy',
-      count: 4
+      count: 5
     });
 
     setQuestions(generated);
@@ -166,32 +166,50 @@ export default function RookXXP({ gamificationState, readinessScore = 54, setTab
               <ArrowLeft size={14} /> BACK TO LEVELS & BADGES
             </button>
 
-            <span className="text-xs font-bold text-cyber-neonPurple uppercase">
-              {activeLevelData.skillIcon} Level {selectedLevel}: {activeLevelData.skillName}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-md bg-cyber-neonPurple/20 border border-cyber-neonPurple/50 text-cyber-neonPurple text-xs font-bold uppercase tracking-wider">
+                {getLevelDifficultyTier(selectedLevel).label}
+              </span>
+              <span className="text-xs font-bold text-slate-300 uppercase">
+                {activeLevelData.skillIcon} Level {selectedLevel}: {activeLevelData.skillName}
+              </span>
+            </div>
           </div>
 
           {quizState === 'loading' && (
             <div className="p-8 border border-cyber-border/60 rounded-xl bg-cyber-dark/40 text-center space-y-3 font-mono">
               <RefreshCw size={32} className="mx-auto text-cyber-neonPurple animate-spin" />
-              <h4 className="text-base font-bold text-white">Preparing Questions for {activeLevelData.title}...</h4>
-              <p className="text-xs text-slate-400">Skill: {activeLevelData.skillName} • Difficulty: {activeLevelData.difficulty}</p>
+              <h4 className="text-base font-bold text-white">Preparing Questions for Level {selectedLevel}: {activeLevelData.title}...</h4>
+              <p className="text-xs text-slate-400">Skill: {activeLevelData.skillName} • Tier: {getLevelDifficultyTier(selectedLevel).label}</p>
             </div>
           )}
 
           {quizState === 'active' && (
             <form onSubmit={handleCalculateScore} className="space-y-6 font-mono">
-              <div className="flex justify-between items-center text-xs text-slate-400 border-b border-cyber-border pb-2">
-                <span>ANSWER ALL QUESTIONS BELOW</span>
-                <span className="text-cyber-neonCyan font-bold">{questions.length} Questions</span>
+              <div className="p-4 border border-cyber-border rounded-xl bg-cyber-dark/40 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-300 font-bold uppercase tracking-wider flex items-center gap-2">
+                    <Brain size={14} className="text-cyber-neonCyan" />
+                    LEVEL {selectedLevel} PROGRESSION — {getLevelDifficultyTier(selectedLevel).name}
+                  </span>
+                  <span className="text-cyber-neonCyan font-bold">
+                    {Object.keys(userAnswers).length} of {questions.length} Answered
+                  </span>
+                </div>
+                <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                  <div 
+                    className="bg-gradient-to-r from-cyber-neonPurple to-cyber-neonCyan h-full rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.4)]"
+                    style={{ width: `${Math.round((Object.keys(userAnswers).length / Math.max(1, questions.length)) * 100)}%` }}
+                  ></div>
+                </div>
               </div>
 
               <div className="space-y-5">
                 {questions.map((q, idx) => (
                   <div key={q.id || idx} className="p-4 border border-cyber-border rounded-xl bg-cyber-dark/60 space-y-3">
                     <div className="flex justify-between items-center border-b border-cyber-border/40 pb-2">
-                      <span className="text-xs font-bold text-cyber-neonPurple uppercase">QUESTION 0{idx + 1}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">{q.difficulty || activeLevelData.difficulty}</span>
+                      <span className="text-xs font-bold text-cyber-neonPurple uppercase">QUESTION {idx + 1} OF {questions.length}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">{q.difficulty || getLevelDifficultyTier(selectedLevel).label}</span>
                     </div>
 
                     <p className="text-xs text-white font-bold leading-relaxed">{q.question}</p>
@@ -229,8 +247,12 @@ export default function RookXXP({ gamificationState, readinessScore = 54, setTab
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-cyber-border">
-                <span className="text-xs text-slate-400">
-                  {Object.keys(userAnswers).length} of {questions.length} answered
+                <span className="text-xs text-slate-400 font-bold">
+                  {Object.keys(userAnswers).length === questions.length ? (
+                    <span className="text-emerald-400">✓ All {questions.length} questions answered</span>
+                  ) : (
+                    <span>{Object.keys(userAnswers).length} of {questions.length} answered — Answer all to submit</span>
+                  )}
                 </span>
 
                 <button
@@ -238,7 +260,7 @@ export default function RookXXP({ gamificationState, readinessScore = 54, setTab
                   disabled={Object.keys(userAnswers).length < questions.length}
                   className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded-lg text-xs font-bold text-white flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  SUBMIT QUIZ <CheckCircle2 size={14} />
+                  SUBMIT LEVEL {selectedLevel} QUIZ <CheckCircle2 size={14} />
                 </button>
               </div>
             </form>
@@ -388,8 +410,8 @@ export default function RookXXP({ gamificationState, readinessScore = 54, setTab
                   </div>
 
                   <div className="pt-2 border-t border-cyber-border/40 flex justify-between items-center">
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                      {lvlData.difficulty}
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono font-bold">
+                      {getLevelDifficultyTier(lvlNum).name}
                     </span>
 
                     {isUnlocked ? (
