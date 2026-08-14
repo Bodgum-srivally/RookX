@@ -267,3 +267,19 @@
 .radar-glow svg {
   filter: drop-shadow(0px 0px 8px rgba(168, 85, 247, 0.35));
 }
+
+/* Slide Right Animation for Hamburger Drawer */
+@keyframes slideRight {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slideRight {
+  animation: slideRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

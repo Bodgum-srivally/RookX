@@ -13,8 +13,9 @@ export default function AuthModal({ onLogin, onRegister, onClose, initialMode = 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [qualification, setQualification] = useState('2nd Year College');
   const [stream, setStream] = useState('Computer Science');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -28,31 +29,41 @@ export default function AuthModal({ onLogin, onRegister, onClose, initialMode = 
       return;
     }
 
-    if (mode === 'register') {
-      if (!fullName.trim()) {
-        setErrorMsg('Please enter your full name.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMsg('Passwords do not match. Please check and try again.');
-        return;
-      }
+    setIsSubmitting(true);
 
-      const registerSuccess = onRegister({
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-        academic: { qualification, stream, gpa: '8.0' }
-      });
+    try {
+      if (mode === 'register') {
+        if (!fullName.trim()) {
+          setErrorMsg('Please enter your full name.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setErrorMsg('Passwords do not match. Please check and try again.');
+          setIsSubmitting(false);
+          return;
+        }
 
-      if (!registerSuccess) {
-        setErrorMsg('An account with this email already exists. Please sign in instead.');
+        const registerSuccess = await onRegister({
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          academic: { qualification, stream, gpa: '8.0' }
+        });
+
+        if (!registerSuccess) {
+          setErrorMsg('An account with this email already exists or registration failed. Please try again.');
+        }
+      } else {
+        const loginSuccess = await onLogin(email.trim().toLowerCase(), password);
+        if (!loginSuccess) {
+          setErrorMsg('Incorrect email or password. Please check your credentials.');
+        }
       }
-    } else {
-      const loginSuccess = onLogin(email.trim().toLowerCase(), password);
-      if (!loginSuccess) {
-        setErrorMsg('Incorrect email or password. Please check your credentials.');
-      }
+    } catch (err) {
+      setErrorMsg('Authentication error. Please check your connection.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

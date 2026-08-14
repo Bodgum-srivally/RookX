@@ -69,6 +69,69 @@ export const BADGES = [
     xpReward: 250
   },
   {
+    id: 'python_beginner',
+    name: 'Python Beginner',
+    icon: '🐍',
+    category: 'Quiz Mastery',
+    description: 'Master Week 1 Python Roadmap Quiz with a passing score.',
+    requirementText: 'Complete Week 1 Python Quiz',
+    xpReward: 150
+  },
+  {
+    id: 'java_explorer',
+    name: 'Java Explorer',
+    icon: '☕',
+    category: 'Quiz Mastery',
+    description: 'Master Week 2 Java Roadmap Quiz.',
+    requirementText: 'Complete Week 2 Java Quiz',
+    xpReward: 150
+  },
+  {
+    id: 'web_fundamentals',
+    name: 'Web Fundamentals',
+    icon: '🌐',
+    category: 'Quiz Mastery',
+    description: 'Master Web & HTML/CSS Roadmap Quiz.',
+    requirementText: 'Complete Web Roadmap Quiz',
+    xpReward: 150
+  },
+  {
+    id: 'sql_learner',
+    name: 'SQL Learner',
+    icon: '🗄️',
+    category: 'Quiz Mastery',
+    description: 'Master SQL Relational Database Quiz.',
+    requirementText: 'Complete SQL Roadmap Quiz',
+    xpReward: 150
+  },
+  {
+    id: 'dsa_challenger',
+    name: 'DSA Challenger',
+    icon: '⚡',
+    category: 'Quiz Mastery',
+    description: 'Master Data Structures & Algorithms Roadmap Quiz.',
+    requirementText: 'Complete DSA Roadmap Quiz',
+    xpReward: 200
+  },
+  {
+    id: 'quiz_master',
+    name: 'Quiz Master',
+    icon: '👑',
+    category: 'Excellence',
+    description: 'Achieve a 100% Perfect Score on any AI Roadmap Quiz.',
+    requirementText: 'Score 100% on any AI Quiz',
+    xpReward: 250
+  },
+  {
+    id: 'weekly_champion',
+    name: 'Weekly Champion',
+    icon: '🎖️',
+    category: 'Roadmap',
+    description: 'Complete 3 Weekly AI Roadmap Quizzes.',
+    requirementText: 'Complete 3 Weekly AI Quizzes',
+    xpReward: 300
+  },
+  {
     id: 'rookx_master',
     name: 'RookX Master',
     icon: '🏆',

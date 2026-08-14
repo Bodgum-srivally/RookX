@@ -1,77 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { CAREER_LIST } from '../data/careerData';
+import { getCareerRoadmap, reorderRoadmapByFirstSkill } from '../data/careerRoadmaps';
+import { syncUserData } from '../services/apiService';
 import { 
   Calendar, Award, BookOpen, CheckSquare, Square, 
-  Sparkles, ArrowRight, CheckCircle2, TrendingUp, RefreshCw, Layers, FileText, ChevronRight, Zap, Clock
+  Sparkles, ArrowRight, CheckCircle2, TrendingUp, RefreshCw, Layers, FileText, ChevronRight, Zap, Clock, Lock, Trophy, RotateCcw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function Roadmap({ profile, assessment, targetCareerId, setTab, onUpdateSkills, onAwardXP }) {
   const career = CAREER_LIST.find(c => c.id === targetCareerId) || CAREER_LIST[0];
-
-  // State: active view ('roadmap', 'reassessment', 'results')
-  const [viewState, setViewState] = useState('roadmap');
-  const [reassessmentAnswers, setReassessmentAnswers] = useState({});
-  const [activeWeek, setActiveWeek] = useState(1);
-
-  const getBlendedMetric = (profileVal, assessmentVal) => {
-    const p = profileVal !== undefined ? Number(profileVal) : 50;
-    const a = assessmentVal !== undefined ? Number(assessmentVal) : 50;
-    return Math.round(p * 0.6 + a * 0.4);
-  };
-
-  // Identify student's actual skill gaps for the selected career
-  const getGapsSorted = () => {
-    return career.requiredSkills.map(reqSkill => {
-      let currentVal = 50;
-      const nameLower = reqSkill.name.toLowerCase();
-
-      if (nameLower.includes('react') || nameLower.includes('javascript') || nameLower.includes('git')) {
-        currentVal = getBlendedMetric(profile.skills?.coding, assessment.skills?.coding);
-      } else if (nameLower.includes('algorithm') || nameLower.includes('data structure') || nameLower.includes('dsa')) {
-        currentVal = getBlendedMetric(profile.skills?.coding, assessment.skills?.aptitude);
-      } else if (nameLower.includes('sql') || nameLower.includes('query') || nameLower.includes('database')) {
-        currentVal = getBlendedMetric(profile.skills?.sql, assessment.skills?.sql);
-      } else if (nameLower.includes('statistic') || nameLower.includes('probability') || nameLower.includes('math')) {
-        currentVal = getBlendedMetric(profile.skills?.mathematics, assessment.skills?.mathematics);
-      } else if (nameLower.includes('figma') || nameLower.includes('design')) {
-        currentVal = getBlendedMetric(profile.skills?.design_principles, 50);
-      } else if (nameLower.includes('strategy') || nameLower.includes('roadmap') || nameLower.includes('product')) {
-        currentVal = getBlendedMetric(profile.skills?.business_strategy, 50);
-      } else {
-        currentVal = getBlendedMetric(profile.skills?.communication, assessment.skills?.communication);
-      }
-
-      currentVal = Math.max(15, Math.min(95, currentVal));
-      return {
-        name: reqSkill.name,
-        currentVal,
-        requiredLevel: reqSkill.level,
-        gap: Math.max(5, reqSkill.level - currentVal)
-      };
-    }).sort((a, b) => b.gap - a.gap);
-  };
-
-  const sortedGaps = getGapsSorted();
-  const gap1 = sortedGaps[0] || { name: 'Programming & Logic', currentVal: 45, gap: 30 };
-  const gap2 = sortedGaps[1] || { name: 'Data Structures & Algorithms', currentVal: 40, gap: 25 };
-  const gap3 = sortedGaps[2] || { name: 'System Tools & Git', currentVal: 50, gap: 15 };
-
-  const getBaselineReadiness = () => {
-    const s1 = getBlendedMetric(profile.skills?.coding, assessment.skills?.coding);
-    const s2 = getBlendedMetric(profile.skills?.sql, assessment.skills?.sql);
-    const s3 = getBlendedMetric(profile.skills?.mathematics, assessment.skills?.mathematics);
-    const s4 = getBlendedMetric(profile.skills?.communication, assessment.skills?.communication);
-    return Math.round((s1 + s2 + s3 + s4) / 4);
-  };
-  const baselineReadiness = getBaselineReadiness();
-
-  const [roadmapIteration, setRoadmapIteration] = useState(() => {
-    return Number(localStorage.getItem(`roadmap_iter_${career.id}`)) || 1;
+  
+  const [firstSkillId, setFirstSkillId] = useState(() => {
+    return localStorage.getItem(`first_skill_${career.id}`) || null;
   });
 
+  const [showSkillSelector, setShowSkillSelector] = useState(!firstSkillId);
+
+  const rawRoadmap = getCareerRoadmap(targetCareerId);
+  const careerRoadmap = firstSkillId 
+    ? reorderRoadmapByFirstSkill(rawRoadmap, firstSkillId)
+    : rawRoadmap;
+
+  // Storage key for roadmap tasks
   const [completedTasks, setCompletedTasks] = useState(() => {
-    const saved = localStorage.getItem(`roadmap_tasks_${career.id}_v${roadmapIteration}`);
+    const saved = localStorage.getItem(`roadmap_tasks_${career.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -82,564 +35,389 @@ export default function Roadmap({ profile, assessment, targetCareerId, setTab, o
     return {};
   });
 
-  const [roadmapHistory, setRoadmapHistory] = useState(() => {
-    const saved = localStorage.getItem(`roadmap_history_${career.id}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
+  const [activeSkillId, setActiveSkillId] = useState(() => {
+    return careerRoadmap.skills[0]?.id || 'python';
   });
 
-  const [resultsData, setResultsData] = useState(null);
+  useEffect(() => {
+    if (firstSkillId && careerRoadmap.skills[0]) {
+      // Keep active skill aligned if starting skill changes
+      setActiveSkillId(careerRoadmap.skills[0].id);
+    }
+  }, [firstSkillId, career.id]);
 
   useEffect(() => {
-    localStorage.setItem(`roadmap_tasks_${career.id}_v${roadmapIteration}`, JSON.stringify(completedTasks));
-  }, [completedTasks, career.id, roadmapIteration]);
-
-  useEffect(() => {
-    localStorage.setItem(`roadmap_history_${career.id}`, JSON.stringify(roadmapHistory));
-  }, [roadmapHistory, career.id]);
-
-  // Structured action plan tasks with skill tags, time estimates, and XP rewards
-  const getTasksForCareer = () => {
-    return [
-      {
-        weekNum: 1,
-        title: "WEEK 1 — FOUNDATIONS & CORE CONCEPTS",
-        objective: `Focus on closing initial priority gaps: ${gap1.name} and ${gap2.name}.`,
-        whyMatters: "Building strong fundamentals prevents compounding errors later in your career.",
-        timeEst: "3-4 Hours",
-        tasks: [
-          { title: `Complete fundamental tutorial modules for ${gap1.name}`, skill: gap1.name, time: "45 min", xp: 50, readiness: "+2%" },
-          { title: `Setup local development environment & version control workspace`, skill: "Dev Setup", time: "30 min", xp: 50, readiness: "+2%" },
-          { title: `Solve 5 beginner logic & coding problems covering ${gap2.name}`, skill: gap2.name, time: "60 min", xp: 100, readiness: "+3%" },
-          { title: `Review core workflow documentation for ${gap3.name}`, skill: gap3.name, time: "30 min", xp: 50, readiness: "+2%" }
-        ]
-      },
-      {
-        weekNum: 2,
-        title: "WEEK 2 — GUIDED PRACTICE & PROBLEM SETS",
-        objective: `Apply fundamentals through targeted exercises and problem sets.`,
-        whyMatters: "Hands-on practice turns theory into real working confidence.",
-        timeEst: "4-5 Hours",
-        tasks: [
-          { title: `Solve 10 guided challenges targeting ${gap1.name}`, skill: gap1.name, time: "60 min", xp: 100, readiness: "+3%" },
-          { title: `Implement data queries & transformations using ${gap2.name}`, skill: gap2.name, time: "45 min", xp: 50, readiness: "+2%" },
-          { title: `Practice branch creation and commits using ${gap3.name}`, skill: gap3.name, time: "30 min", xp: 50, readiness: "+2%" },
-          { title: `Build a small interactive test script`, skill: "Practical Code", time: "45 min", xp: 75, readiness: "+3%" }
-        ]
-      },
-      {
-        weekNum: 3,
-        title: "WEEK 3 — REAL-WORLD APPLICATION",
-        objective: `Use your skills in a practical mini-project.`,
-        whyMatters: "Employers evaluate real working code and projects.",
-        timeEst: "5-6 Hours",
-        tasks: [
-          { title: `Build working project: "${career.recommendedProjects[0]?.title || 'Portfolio Project'}"`, skill: "Portfolio Project", time: "120 min", xp: 250, readiness: "+8%" },
-          { title: `Integrate ${gap1.name} component flow and state management`, skill: gap1.name, time: "45 min", xp: 75, readiness: "+3%" },
-          { title: `Store project data cleanly using ${gap2.name}`, skill: gap2.name, time: "45 min", xp: 50, readiness: "+2%" },
-          { title: `Push project code to GitHub with a clean README file`, skill: "Git & Documentation", time: "30 min", xp: 75, readiness: "+3%" }
-        ]
-      },
-      {
-        weekNum: 4,
-        title: "WEEK 4 — VALIDATION & REASSESSMENT",
-        objective: `Test your understanding and measure your progress.`,
-        whyMatters: "Validating your gains proves readiness and highlights next steps.",
-        timeEst: "3-4 Hours",
-        tasks: [
-          { title: `Perform code cleanup and verify all feature endpoints`, skill: "Code Review", time: "45 min", xp: 75, readiness: "+3%" },
-          { title: `Review project architecture with the AI mentor`, skill: "System Architecture", time: "30 min", xp: 50, readiness: "+2%" },
-          { title: `Update resume with new skills & project link`, skill: "Career Prep", time: "30 min", xp: 75, readiness: "+3%" },
-          { title: `Complete the Post-Roadmap Progress Reassessment`, skill: "Reassessment", time: "20 min", xp: 100, readiness: "+5%" }
-        ]
+    localStorage.setItem(`roadmap_tasks_${career.id}`, JSON.stringify(completedTasks));
+    syncUserData({
+      roadmaps: {
+        [career.id]: {
+          completedTasks
+        }
       }
-    ];
+    });
+  }, [completedTasks, career.id]);
+
+  const handleSelectFirstSkill = (skillId) => {
+    setFirstSkillId(skillId);
+    localStorage.setItem(`first_skill_${career.id}`, skillId);
+    setActiveSkillId(skillId);
+    setShowSkillSelector(false);
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
   };
 
-  const weeklySchedule = getTasksForCareer();
+  // Helper: Determine if a specific week is complete (all tasks done)
+  const isWeekComplete = (weekObj) => {
+    if (!weekObj || !weekObj.tasks) return false;
+    return weekObj.tasks.every(t => !!completedTasks[t.id]);
+  };
 
-  const toggleTask = (weekIdx, taskIdx, taskObj) => {
-    const key = `${weekIdx}_${taskIdx}`;
-    const isNowDone = !completedTasks[key];
+  // Helper: Determine if a skill is completed (all its weeks complete)
+  const isSkillComplete = (skillObj) => {
+    if (!skillObj || !skillObj.weeks) return false;
+    return skillObj.weeks.every(w => isWeekComplete(w));
+  };
+
+  // Helper: Determine if a skill is unlocked
+  const isSkillUnlocked = (skillIdx) => {
+    if (skillIdx === 0) return true;
+    const prevSkill = careerRoadmap.skills[skillIdx - 1];
+    return isSkillComplete(prevSkill);
+  };
+
+  // Helper: Determine if a week is unlocked
+  const isWeekUnlocked = (skillIdx, weekIdx) => {
+    if (!isSkillUnlocked(skillIdx)) return false;
+    if (weekIdx === 0) return true;
+    const currentSkill = careerRoadmap.skills[skillIdx];
+    const prevWeek = currentSkill?.weeks[weekIdx - 1];
+    return isWeekComplete(prevWeek);
+  };
+
+  // Find currently selected or active skill object
+  const activeSkillObj = careerRoadmap.skills.find(s => s.id === activeSkillId) || careerRoadmap.skills[0];
+  const activeSkillIdx = careerRoadmap.skills.findIndex(s => s.id === activeSkillObj.id);
+
+  const toggleTask = (taskId, xpVal, taskTitle) => {
+    const isNowDone = !completedTasks[taskId];
 
     setCompletedTasks(prev => ({
       ...prev,
-      [key]: isNowDone
+      [taskId]: isNowDone
     }));
 
     if (isNowDone) {
       confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
       if (onAwardXP) {
-        onAwardXP(taskObj.xp || 50, `Completed Roadmap Task: ${taskObj.title}`, { taskId: `roadmap_${weekIdx}_${taskIdx}` });
+        onAwardXP(xpVal || 50, `Completed Roadmap Task: ${taskTitle}`, { taskId });
       }
     }
   };
 
-  // Progress Calculations
-  const totalTasks = weeklySchedule.reduce((acc, w) => acc + w.tasks.length, 0);
-  const doneCount = Object.values(completedTasks).filter(Boolean).length;
-  const overallProgressPct = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
+  // Calculate overall career progress
+  const allTasksList = careerRoadmap.skills.flatMap(s => s.weeks.flatMap(w => w.tasks));
+  const totalTasksCount = allTasksList.length;
+  const doneTasksCount = allTasksList.filter(t => !!completedTasks[t.id]).length;
+  const overallProgressPct = totalTasksCount > 0 ? Math.round((doneTasksCount / totalTasksCount) * 100) : 0;
 
-  const isWeekComplete = (weekNum) => {
-    const weekData = weeklySchedule[weekNum - 1];
-    if (!weekData) return false;
-    return weekData.tasks.every((_, taskIdx) => !!completedTasks[`${weekNum - 1}_${taskIdx}`]);
-  };
+  // Active skill week progress
+  const activeSkillTasks = activeSkillObj.weeks.flatMap(w => w.tasks);
+  const activeSkillDone = activeSkillTasks.filter(t => !!completedTasks[t.id]).length;
+  const activeSkillProgressPct = activeSkillTasks.length > 0 ? Math.round((activeSkillDone / activeSkillTasks.length) * 100) : 0;
 
-  const isWeekUnlocked = (weekNum) => {
-    if (weekNum === 1) return true;
-    return isWeekComplete(weekNum - 1);
-  };
-
-  const reassessmentQuestions = [
-    {
-      id: 'q1',
-      skill: gap1.name,
-      question: `In ${gap1.name}, what is the best practice for handling state updates or modular logic?`,
-      options: [
-        `Keep logic immutable and update state cleanly`,
-        `Mutate state directly anywhere`,
-        `Ignore error handling and hardcode values`,
-        `Use global variables for all operations`
-      ],
-      correct: 0
-    },
-    {
-      id: 'q2',
-      skill: gap2.name,
-      question: `When optimizing ${gap2.name}, which data structure/approach yields optimal time complexity?`,
-      options: [
-        `Nested loops over linear arrays`,
-        `Hash maps / indexed lookups (O(1) average time)`,
-        `Randomly sorting arrays on every call`,
-        `Re-reading data from disk sequentially`
-      ],
-      correct: 1
-    },
-    {
-      id: 'q3',
-      skill: gap3.name,
-      question: `What is the primary benefit of isolating features using ${gap3.name} branches?`,
-      options: [
-        `It slows down development`,
-        `It prevents broken code from affecting the main codebase`,
-        `It automatically writes unit tests`,
-        `It deletes old git commits`
-      ],
-      correct: 1
-    },
-    {
-      id: 'q4',
-      skill: 'Project Integration',
-      question: `What is the most effective way to demonstrate career readiness to hiring teams?`,
-      options: [
-        `Only listing skill keywords on a resume`,
-        `Deploying a working GitHub project with documentation`,
-        `Memorizing definitions without building projects`,
-        `Skipping code review`
-      ],
-      correct: 1
-    }
-  ];
-
-  const handleReassessmentAnswer = (qId, optionIdx) => {
-    setReassessmentAnswers(prev => ({
-      ...prev,
-      [qId]: optionIdx
-    }));
-  };
-
-  const handleCalculateReassessmentResults = () => {
-    let correctCount = 0;
-    reassessmentQuestions.forEach(q => {
-      if (reassessmentAnswers[q.id] === q.correct) {
-        correctCount += 1;
-      }
-    });
-
-    const scoreRatio = correctCount / reassessmentQuestions.length;
-    const gain1 = Math.round(15 * scoreRatio + 5);
-    const gain2 = Math.round(12 * scoreRatio + 4);
-    const gain3 = Math.round(10 * scoreRatio + 3);
-
-    const afterGap1 = Math.min(95, gap1.currentVal + gain1);
-    const afterGap2 = Math.min(95, gap2.currentVal + gain2);
-    const afterGap3 = Math.min(95, gap3.currentVal + gain3);
-
-    const afterReadiness = Math.min(98, baselineReadiness + Math.round((gain1 + gain2 + gain3) / 3));
-    const overallGain = afterReadiness - baselineReadiness;
-
-    const computedResults = {
-      correctCount,
-      totalCount: reassessmentQuestions.length,
-      beforeReadiness: baselineReadiness,
-      afterReadiness,
-      overallGain,
-      gaps: [
-        { name: gap1.name, before: gap1.currentVal, after: afterGap1, gain: gain1 },
-        { name: gap2.name, before: gap2.currentVal, after: afterGap2, gain: gain2 },
-        { name: gap3.name, before: gap3.currentVal, after: afterGap3, gain: gain3 }
-      ]
-    };
-
-    setResultsData(computedResults);
-    setViewState('results');
-
-    if (onUpdateSkills) {
-      onUpdateSkills({
-        coding: afterGap1,
-        aptitude: afterGap2,
-        sql: afterGap3
-      });
-    }
-
-    const historyItem = {
-      id: Date.now(),
-      iteration: roadmapIteration,
-      title: `Roadmap #${roadmapIteration} — ${gap1.name} Focus`,
-      completedDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      overallGain
-    };
-    setRoadmapHistory(prev => [historyItem, ...prev]);
-  };
-
-  const handleGenerateNextRoadmap = () => {
-    const nextIter = roadmapIteration + 1;
-    setRoadmapIteration(nextIter);
-    localStorage.setItem(`roadmap_iter_${career.id}`, nextIter);
-    setCompletedTasks({});
-    setViewState('roadmap');
-    setActiveWeek(1);
-  };
+  const nextSkillObj = careerRoadmap.skills[activeSkillIdx + 1];
 
   return (
-    <div className="glass-panel border-glow-purple p-6 rounded-xl relative scanlines space-y-6 animate-fadeIn font-mono pb-12">
+    <div className="space-y-8 animate-fadeIn font-mono pb-12">
       
-      {/* Top Header Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-cyber-border pb-4 gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Calendar className="text-cyber-neonPurple animate-pulse" />
-            PERSONALIZED 4-WEEK ACTION ROADMAP
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Interactive skill development roadmap with XP & Readiness rewards</p>
-        </div>
-        <div className="font-mono text-right shrink-0">
-          <div className="text-xs text-slate-400">Target Career Goal</div>
-          <span className="text-sm text-cyber-neonPurple font-bold">{career.name}</span>
-        </div>
-      </div>
-
-      {/* VIEW STATE 1: MAIN ROADMAP VIEW */}
-      {viewState === 'roadmap' && (
-        <div className="space-y-6">
-          
-          {/* ROADMAP BASIS CARD */}
-          <div className="p-4 border border-cyber-neonPurple/30 bg-cyber-neonPurple/5 rounded-xl space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-cyber-neonPurple uppercase tracking-wider">ROADMAP BASIS</span>
-              <span className="text-[10px] text-slate-400">Iteration #{roadmapIteration}</span>
+      {/* HEADER BANNER */}
+      <section className="glass-panel border-glow-cyan p-6 md:p-8 rounded-2xl scanlines">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyber-neonCyan/40 bg-cyber-neonCyan/10 text-cyber-neonCyan text-xs font-bold uppercase tracking-widest">
+              <Calendar size={14} className="animate-pulse" />
+              HIERARCHICAL ROADMAP • {(career?.name || career?.title || careerRoadmap?.title || 'CAREER ROADMAP').toUpperCase()}
             </div>
-            <p className="text-xs text-slate-200 leading-relaxed">
-              Your roadmap was created from your highest-priority skill gaps identified in your assessment & reality check:
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Actionable Skill Journey 🚀
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+              Master one skill at a time across targeted learning weeks before unlocking your next career skill.
             </p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className="p-2.5 border border-cyber-border bg-cyber-dark/40 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase">1. Priority Gap</span>
-                <div className="text-xs font-bold text-white truncate">{gap1.name}</div>
-                <span className="text-[10px] text-cyber-neonRose font-bold">-{gap1.gap} pt gap</span>
-              </div>
-
-              <div className="p-2.5 border border-cyber-border bg-cyber-dark/40 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase">2. Priority Gap</span>
-                <div className="text-xs font-bold text-white truncate">{gap2.name}</div>
-                <span className="text-[10px] text-cyber-neonCyan font-bold">-{gap2.gap} pt gap</span>
-              </div>
-
-              <div className="p-2.5 border border-cyber-border bg-cyber-dark/40 rounded-lg">
-                <span className="text-[10px] text-slate-400 block uppercase">3. Priority Gap</span>
-                <div className="text-xs font-bold text-white truncate">{gap3.name}</div>
-                <span className="text-[10px] text-emerald-400 font-bold">-{gap3.gap} pt gap</span>
-              </div>
-            </div>
           </div>
 
-          {/* OVERALL ROADMAP PROGRESS TRACKER */}
-          <div className="p-4 border border-cyber-border bg-cyber-dark/40 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-cyber-neonPurple/15 text-cyber-neonPurple shrink-0">
-                <TrendingUp size={20} />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase">Roadmap Progress Tracker</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Tasks Completed: {doneCount} / {totalTasks} ({overallProgressPct}%)</div>
-              </div>
-            </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <button
+              onClick={() => setShowSkillSelector(true)}
+              className="px-3.5 py-2.5 rounded-xl border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-cyber-neonPurple hover:bg-cyber-neonPurple/25 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+            >
+              <RotateCcw size={14} />
+              <span>Change Starting Skill</span>
+            </button>
 
-            <div className="w-full sm:w-1/2 flex items-center gap-3">
-              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-cyber-border">
-                <div 
-                  className="bg-cyber-neonPurple h-full transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]"
-                  style={{ width: `${overallProgressPct}%` }}
-                />
-              </div>
-              <span className="text-xs font-bold text-cyber-neonPurple shrink-0">{overallProgressPct}%</span>
+            <div className="p-4 rounded-xl border border-cyber-neonCyan/50 bg-cyber-dark/80 text-center shrink-0 min-w-[160px]">
+              <span className="text-[10px] text-slate-400 block font-bold uppercase">OVERALL CAREER PROGRESS</span>
+              <span className="text-3xl font-extrabold text-cyber-neonCyan block mt-1">
+                {overallProgressPct}%
+              </span>
+              <span className="text-[10px] text-slate-300 block font-mono">
+                {doneTasksCount} of {totalTasksCount} Tasks
+              </span>
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* WEEKLY PROGRESS STATUS BADGES */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {weeklySchedule.map((w) => {
-              const complete = isWeekComplete(w.weekNum);
-              const unlocked = isWeekUnlocked(w.weekNum);
+      {/* DESIRED FIRST SKILL SELECTION BANNER / CARD */}
+      {showSkillSelector && (
+        <section className="glass-panel border-glow-purple p-6 rounded-2xl space-y-4 scanlines animate-fadeIn">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-cyber-border/60 pb-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold border border-amber-400/40 bg-amber-400/10 text-amber-400 uppercase">
+                <Sparkles size={13} className="animate-pulse" />
+                STARTING SKILL SELECTION
+              </div>
+              <h2 className="text-xl font-extrabold text-white">Where would you like to start?</h2>
+              <p className="text-xs text-slate-300">
+                Choose your primary entry point skill for <strong>{career.name}</strong>. Your weekly tasks, missions, and quizzes will align with your choice.
+              </p>
+            </div>
+            {firstSkillId && (
+              <button 
+                onClick={() => setShowSkillSelector(false)}
+                className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+              >
+                Close Selector
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+            {rawRoadmap.skills.map(sk => {
+              const isSelected = firstSkillId === sk.id;
               return (
                 <button
-                  key={w.weekNum}
-                  onClick={() => unlocked && setActiveWeek(w.weekNum)}
-                  className={`
-                    p-3 rounded-lg border text-left transition-all relative font-mono cursor-pointer
-                    ${complete 
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-white' 
-                      : activeWeek === w.weekNum 
-                      ? 'border-cyber-neonPurple bg-cyber-neonPurple/20 text-white' 
-                      : unlocked 
-                      ? 'border-cyber-border bg-cyber-dark/40 text-slate-300 hover:border-slate-600' 
-                      : 'border-cyber-border/30 bg-cyber-dark/20 text-slate-600 cursor-not-allowed'}
-                  `}
+                  key={sk.id}
+                  onClick={() => handleSelectFirstSkill(sk.id)}
+                  className={`p-4 rounded-xl border text-left flex flex-col justify-between space-y-2 transition-all cursor-pointer ${
+                    isSelected
+                      ? 'border-cyber-neonPurple bg-cyber-neonPurple/20 shadow-[0_0_15px_rgba(168,85,247,0.3)] scale-[1.03]'
+                      : 'border-cyber-border bg-cyber-dark/40 hover:border-cyber-neonPurple hover:bg-cyber-neonPurple/10'
+                  }`}
                 >
-                  <div className="text-[10px] uppercase text-slate-400 font-bold">Week {w.weekNum}</div>
-                  <div className="text-xs font-bold truncate mt-0.5">
-                    {complete ? 'Complete ✓' : unlocked ? (activeWeek === w.weekNum ? 'In Progress' : 'Unlocked') : 'Locked 🔒'}
+                  <div className="text-2xl">{sk.icon}</div>
+                  <div>
+                    <span className="text-xs font-bold text-white block truncate">{sk.name}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{sk.weeks.length} Weeks</span>
                   </div>
+                  {isSelected && (
+                    <span className="text-[9px] text-emerald-400 font-bold block">✓ CURRENT START</span>
+                  )}
                 </button>
               );
             })}
           </div>
-
-          {/* ACTIVE WEEK CONTENT WITH ENHANCED TASK ITEMS (Part 10 Requirement) */}
-          <div className="space-y-4">
-            {weeklySchedule.map((weekData) => {
-              if (weekData.weekNum !== activeWeek) return null;
-              const complete = isWeekComplete(weekData.weekNum);
-
-              return (
-                <div key={weekData.weekNum} className="space-y-4 p-5 border border-cyber-border bg-cyber-dark/30 rounded-xl">
-                  
-                  {/* Week Header */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-cyber-border/60 pb-3 gap-2">
-                    <div>
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <BookOpen className="text-cyber-neonPurple" size={18} />
-                        {weekData.title}
-                      </h3>
-                      <p className="text-xs text-slate-300 mt-1">{weekData.objective}</p>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">💡 Why it matters: {weekData.whyMatters}</span>
-                    </div>
-
-                    <span className="text-xs text-cyber-neonCyan font-bold shrink-0">
-                      Est. Time: {weekData.timeEst}
-                    </span>
-                  </div>
-
-                  {/* Tasks Checklist Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    {weekData.tasks.map((task, taskIdx) => {
-                      const isChecked = !!completedTasks[`${weekData.weekNum - 1}_${taskIdx}`];
-                      return (
-                        <div 
-                          key={taskIdx}
-                          onClick={() => toggleTask(weekData.weekNum - 1, taskIdx, task)}
-                          className={`
-                            p-4 rounded-xl border cursor-pointer select-none transition-all flex flex-col justify-between space-y-3
-                            ${isChecked 
-                              ? 'border-emerald-500/40 bg-emerald-500/10 text-white' 
-                              : 'border-cyber-border bg-cyber-dark/40 hover:border-cyber-neonPurple hover:bg-cyber-neonPurple/5 text-slate-200'}
-                          `}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-0.5 shrink-0 ${isChecked ? 'text-emerald-400' : 'text-slate-500'}`}>
-                              {isChecked ? <CheckCircle2 size={18} /> : <Square size={18} />}
-                            </div>
-
-                            <div className="space-y-1">
-                              <span className={`text-xs font-bold block ${isChecked ? 'line-through text-slate-300' : 'text-white'}`}>
-                                {task.title}
-                              </span>
-                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold pt-1">
-                                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                                  Skill: {task.skill}
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
-                                  <Clock size={10} /> {task.time}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 border-t border-cyber-border/40 flex justify-between items-center text-xs">
-                            <div className="flex gap-2">
-                              <span className="text-purple-400 font-bold">{task.xp} XP</span>
-                              <span className="text-emerald-400 font-bold">{task.readiness} Readiness</span>
-                            </div>
-
-                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
-                              isChecked 
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
-                                : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-                            }`}>
-                              {isChecked ? '✓ Completed' : 'Complete Task'}
-                            </span>
-                          </div>
-
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Complete Week Action Banner */}
-                  <div className="pt-3 flex justify-between items-center border-t border-cyber-border/40">
-                    <span className="text-xs text-slate-400">
-                      {complete ? '🎉 Week Complete! Unlock next week or take reassessment.' : 'Complete all tasks to unlock progress reassessment.'}
-                    </span>
-
-                    {complete && activeWeek === 4 && (
-                      <button
-                        onClick={() => setViewState('reassessment')}
-                        className="cyber-btn cyber-btn-purple px-5 py-2 rounded text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-lg animate-pulse"
-                      >
-                        TAKE REASSESSMENT TEST <ArrowRight size={14} />
-                      </button>
-                    )}
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-
-        </div>
+        </section>
       )}
 
-      {/* VIEW STATE 2: REASSESSMENT TEST */}
-      {viewState === 'reassessment' && (
-        <div className="space-y-6 max-w-2xl mx-auto animate-fadeIn">
-          <div className="text-center space-y-2 border-b border-cyber-border pb-4">
-            <span className="text-xs font-bold text-cyber-neonPurple uppercase">POST-ROADMAP EVALUATION</span>
-            <h3 className="text-xl font-bold text-white">4-Week Skill Reassessment Test</h3>
-            <p className="text-xs text-slate-400">
-              Answer 4 questions targeting your trained gaps ({gap1.name}, {gap2.name}, {gap3.name}) to verify skill growth.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {reassessmentQuestions.map((q, idx) => (
-              <div key={q.id} className="p-4 border border-cyber-border bg-cyber-dark/40 rounded-xl space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-cyber-neonCyan uppercase">QUESTION {idx + 1} • {q.skill}</span>
-                </div>
-                <h4 className="text-xs font-bold text-white">{q.question}</h4>
-
-                <div className="space-y-2 pt-1">
-                  {q.options.map((opt, oIdx) => (
-                    <button
-                      key={oIdx}
-                      onClick={() => handleReassessmentAnswer(q.id, oIdx)}
-                      className={`
-                        w-full text-left p-3 rounded-lg border text-xs font-mono transition-all cursor-pointer
-                        ${reassessmentAnswers[q.id] === oIdx
-                          ? 'border-cyber-neonPurple bg-cyber-neonPurple/20 text-white font-bold'
-                          : 'border-cyber-border bg-cyber-dark/30 text-slate-300 hover:border-slate-700'}
-                      `}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-between items-center pt-4 border-t border-cyber-border">
-            <button
-              onClick={() => setViewState('roadmap')}
-              className="text-xs text-slate-400 hover:text-white cursor-pointer"
-            >
-              ← Back to Roadmap
-            </button>
-
-            <button
-              onClick={handleCalculateReassessmentResults}
-              disabled={Object.keys(reassessmentAnswers).length < reassessmentQuestions.length}
-              className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white cursor-pointer disabled:opacity-50"
-            >
-              CALCULATE SKILL GAINS →
-            </button>
-          </div>
+      {/* SKILL PROGRESSION TABS & HIERARCHY */}
+      <section className="space-y-4 font-mono">
+        <div className="flex justify-between items-center">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            Career Skill Learning Sequence
+          </span>
+          <span className="text-[10px] text-cyber-neonCyan font-bold">
+            Step-by-Step Skill Mastery
+          </span>
         </div>
-      )}
 
-      {/* VIEW STATE 3: RESULTS SUMMARY REPORT */}
-      {viewState === 'results' && resultsData && (
-        <div className="space-y-6 max-w-2xl mx-auto animate-fadeIn">
-          <div className="text-center space-y-2 border-b border-cyber-border pb-4">
-            <span className="text-xs font-bold text-emerald-400 uppercase">REASSESSMENT COMPLETE ✓</span>
-            <h3 className="text-2xl font-extrabold text-white">Skill Growth Verified!</h3>
-            <p className="text-xs text-slate-300">
-              You answered {resultsData.correctCount} of {resultsData.totalCount} questions correctly.
-            </p>
-          </div>
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+          {careerRoadmap.skills.map((sk, idx) => {
+            const unlocked = isSkillUnlocked(idx);
+            const completed = isSkillComplete(sk);
+            const isSelected = sk.id === activeSkillObj.id;
 
-          <div className="p-5 border border-emerald-500/40 bg-emerald-500/10 rounded-xl text-center space-y-2">
-            <span className="text-[10px] text-slate-400 uppercase block">OVERALL CAREER READINESS BOOST</span>
-            <div className="flex justify-center items-baseline gap-3">
-              <span className="text-slate-400 text-lg line-through">{resultsData.beforeReadiness}%</span>
-              <ArrowRight className="text-emerald-400" size={20} />
-              <span className="text-3xl font-extrabold text-emerald-400">{resultsData.afterReadiness}%</span>
+            return (
+              <button
+                key={sk.id}
+                onClick={() => {
+                  if (unlocked) setActiveSkillId(sk.id);
+                }}
+                disabled={!unlocked}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold shrink-0 flex items-center gap-2.5 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-cyber-neonCyan bg-cyber-neonCyan/20 text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] scale-[1.02]'
+                    : completed
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:border-emerald-500'
+                      : unlocked
+                        ? 'border-cyber-border bg-cyber-dark/40 text-slate-300 hover:border-slate-500 hover:text-white'
+                        : 'border-cyber-border/30 bg-cyber-dark/20 text-slate-500 opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <span className="text-base">{sk.icon}</span>
+                <div className="text-left">
+                  <span className="block text-xs font-bold">{sk.name}</span>
+                  <span className="text-[9px] text-slate-400 font-mono block">
+                    {completed ? '✓ COMPLETED' : unlocked ? `${sk.weeks.length} Weeks` : '🔒 LOCKED'}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* CURRENT ACTIVE SKILL DETAIL BANNER */}
+      <section className="glass-panel border-glow-purple p-6 rounded-2xl space-y-4 scanlines font-mono">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-cyber-border pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{activeSkillObj.icon}</span>
+              <span className="text-xs font-bold text-cyber-neonPurple uppercase tracking-widest">CURRENT FOCUS SKILL</span>
             </div>
-            <span className="text-xs text-emerald-400 font-bold block">+{resultsData.overallGain}% Career Readiness Improvement</span>
+            <h2 className="text-xl font-extrabold text-white">{activeSkillObj.name}</h2>
+            <p className="text-xs text-slate-300 max-w-2xl">{activeSkillObj.description}</p>
           </div>
 
-          <div className="space-y-3">
-            <span className="text-xs font-bold text-white uppercase block">Verified Skill Improvements:</span>
-            {resultsData.gaps.map((g, idx) => (
-              <div key={idx} className="p-3.5 border border-cyber-border bg-cyber-dark/40 rounded-xl flex justify-between items-center">
-                <div>
-                  <span className="text-xs font-bold text-white block">{g.name}</span>
-                  <span className="text-[10px] text-slate-400">Baseline: {g.before}%</span>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-sm font-extrabold text-cyber-neonCyan">{g.after}%</span>
-                  <span className="text-[10px] text-emerald-400 block font-bold">+{g.gain}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-between items-center pt-4 border-t border-cyber-border">
-            <button
-              onClick={() => setViewState('roadmap')}
-              className="text-xs text-slate-400 hover:text-white cursor-pointer"
-            >
-              View Roadmap
-            </button>
-
-            <button
-              onClick={handleGenerateNextRoadmap}
-              className="cyber-btn cyber-btn-purple px-6 py-2.5 rounded text-xs font-bold text-white cursor-pointer"
-            >
-              GENERATE ROADMAP ITERATION #{roadmapIteration + 1} →
-            </button>
+          <div className="text-right shrink-0">
+            <span className="text-xs text-slate-400 block font-bold">SKILL PROGRESS</span>
+            <span className="text-2xl font-extrabold text-amber-400">{activeSkillProgressPct}%</span>
           </div>
         </div>
-      )}
+
+        {/* Skill Progress Bar */}
+        <div className="space-y-1">
+          <div className="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-800 p-0.5">
+            <div 
+              className="bg-gradient-to-r from-cyber-neonPurple via-cyber-neonCyan to-amber-400 h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(168,85,247,0.4)]"
+              style={{ width: `${activeSkillProgressPct}%` }}
+            ></div>
+          </div>
+        </div>
+
+        {/* Next Skill Lock Banner */}
+        {nextSkillObj && (
+          <div className="p-3 rounded-lg border border-cyber-border/60 bg-cyber-dark/40 flex items-center justify-between text-xs text-slate-400">
+            <span className="flex items-center gap-2">
+              <Lock size={14} className="text-amber-400" />
+              <span><strong>NEXT SKILL:</strong> {nextSkillObj.name}</span>
+            </span>
+            <span className="text-[10px] text-cyber-neonCyan font-bold">
+              Unlocks after completing all {activeSkillObj.name} weeks
+            </span>
+          </div>
+        )}
+      </section>
+
+      {/* WEEKLY TASKS FOR CURRENT SKILL */}
+      <section className="space-y-6 font-mono">
+        <div className="flex justify-between items-center">
+          <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <Clock size={18} className="text-cyber-neonCyan" />
+            Learning Weeks for {activeSkillObj.name}
+          </h3>
+          <span className="text-xs text-slate-400">
+            {activeSkillObj.weeks.length} Consecutive Weeks
+          </span>
+        </div>
+
+        <div className="space-y-6">
+          {activeSkillObj.weeks.map((week, wIdx) => {
+            const weekUnlocked = isWeekUnlocked(activeSkillIdx, wIdx);
+            const weekDone = isWeekComplete(week);
+
+            return (
+              <div 
+                key={week.weekNum}
+                className={`glass-panel p-6 rounded-2xl border transition-all scanlines space-y-4 ${
+                  weekDone
+                    ? 'border-emerald-500/50 bg-emerald-500/5'
+                    : weekUnlocked
+                      ? 'border-cyber-border bg-cyber-dark/60'
+                      : 'border-cyber-border/30 bg-cyber-dark/20 opacity-60'
+                }`}
+              >
+                {/* Week Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-cyber-border/40 pb-3 gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-cyber-neonCyan uppercase">
+                        {week.title}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-bold border border-slate-700">
+                        Difficulty: {week.difficulty}
+                      </span>
+                      {weekDone && (
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                          ✓ WEEK COMPLETED
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {week.topics.map((tp, tIdx) => (
+                        <span key={tIdx} className="text-[10px] px-2 py-0.5 rounded bg-cyber-dark border border-cyber-border text-slate-300">
+                          • {tp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quick Action to Quiz Page */}
+                  <button
+                    onClick={() => setTab('xp_badges')}
+                    className="px-3.5 py-1.5 rounded-lg border border-cyber-neonPurple/40 bg-cyber-neonPurple/20 text-cyber-neonPurple hover:bg-cyber-neonPurple/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                  >
+                    <span>TAKE WEEK QUIZ</span>
+                    <ArrowRight size={13} />
+                  </button>
+                </div>
+
+                {/* Tasks List */}
+                <div className="space-y-2.5">
+                  {week.tasks.map((task) => {
+                    const isDone = !!completedTasks[task.id];
+
+                    return (
+                      <div
+                        key={task.id}
+                        onClick={() => {
+                          if (weekUnlocked) toggleTask(task.id, task.xp, task.title);
+                        }}
+                        className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 ${
+                          weekUnlocked ? 'cursor-pointer' : 'cursor-not-allowed'
+                        } ${
+                          isDone
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-white'
+                            : weekUnlocked
+                              ? 'border-cyber-border bg-cyber-dark/40 text-slate-300 hover:border-slate-500'
+                              : 'border-cyber-border/30 bg-cyber-dark/20 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {isDone ? (
+                            <CheckSquare size={18} className="text-emerald-400 shrink-0" />
+                          ) : (
+                            <Square size={18} className="text-slate-500 shrink-0" />
+                          )}
+                          <div>
+                            <span className={`text-xs font-bold block ${isDone ? 'line-through text-slate-400' : 'text-white'}`}>
+                              {task.title}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{task.time} • Skill: {task.skill}</span>
+                          </div>
+                        </div>
+
+                        <span className="text-xs font-bold text-amber-400 shrink-0">
+                          +{task.xp} XP
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
     </div>
   );

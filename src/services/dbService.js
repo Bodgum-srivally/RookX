@@ -1,166 +1,68 @@
-// Persistent IndexedDB Database Engine for RookX (Zero Data Loss Protection)
+import { syncUserData, fetchCurrentUser, getAuthToken, clearAuthToken } from './apiService';
 
-const DB_NAME = 'RookX_Career_Database';
-const DB_VERSION = 1;
-const STORES = {
-  USERS: 'users_store',
-  ASSESSMENTS: 'assessments_store',
-  ROADMAPS: 'roadmaps_store',
-  SESSIONS: 'sessions_store'
-};
-
-// Initialize or open IndexedDB Connection
-export function openDB() {
-  return new Promise((resolve, reject) => {
-    if (!window.indexedDB) {
-      console.warn("IndexedDB unavailable, using redundant localStorage storage.");
-      resolve(null);
-      return;
-    }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORES.USERS)) {
-        db.createObjectStore(STORES.USERS, { keyPath: 'email' });
-      }
-      if (!db.objectStoreNames.contains(STORES.ASSESSMENTS)) {
-        db.createObjectStore(STORES.ASSESSMENTS, { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains(STORES.ROADMAPS)) {
-        db.createObjectStore(STORES.ROADMAPS, { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains(STORES.SESSIONS)) {
-        db.createObjectStore(STORES.SESSIONS, { keyPath: 'key' });
-      }
-    };
-
-    request.onsuccess = (e) => resolve(e.target.result);
-    request.onerror = (e) => {
-      console.error("IndexedDB Open Error:", e.target.error);
-      resolve(null);
-    };
-  });
-}
-
-// Save User Record to Database (IndexedDB + localStorage Double-Write Redundancy)
+// Synchronize User Record to MongoDB Atlas Cloud Database
 export async function saveUserToDB(userRecord) {
-  if (!userRecord || !userRecord.email) return;
+  if (!userRecord) return;
 
-  // 1. Transactional Write to IndexedDB
-  try {
-    const db = await openDB();
-    if (db) {
-      const tx = db.transaction(STORES.USERS, 'readwrite');
-      tx.objectStore(STORES.USERS).put(userRecord);
-    }
-  } catch (err) {
-    console.error("IndexedDB Write Error:", err);
-  }
+  const payload = {
+    profileData: userRecord.profileData,
+    assessmentScores: userRecord.assessmentScores,
+    gamification: userRecord.gamification,
+    roadmaps: userRecord.roadmaps
+  };
 
-  // 2. Redundant Mirror Write to localStorage
-  try {
-    const users = JSON.parse(localStorage.getItem('rookx_users_db') || '{}');
-    users[userRecord.email] = userRecord;
-    localStorage.setItem('rookx_users_db', JSON.stringify(users));
-  } catch (e) {
-    console.error("localStorage Mirror Error:", e);
-  }
+  return await syncUserData(payload);
 }
 
-// Fetch User Record from Database
+// Fetch Active User Profile & Cloud Data from MongoDB Atlas
 export async function getUserFromDB(email) {
-  if (!email) return null;
-
-  try {
-    const db = await openDB();
-    if (db) {
-      const record = await new Promise((resolve) => {
-        const tx = db.transaction(STORES.USERS, 'readonly');
-        const req = tx.objectStore(STORES.USERS).get(email);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      });
-      if (record) return record;
-    }
-  } catch (err) {}
-
-  // Fallback to localStorage mirror
-  const users = JSON.parse(localStorage.getItem('rookx_users_db') || '{}');
-  return users[email] || null;
+  const user = await fetchCurrentUser();
+  if (user && user.email === email) {
+    return user;
+  }
+  return null;
 }
 
-// Fetch All Users from Database
+// Fetch All Users (deprecated for security: clients now only receive their own isolated cloud records)
 export async function getAllUsersFromDB() {
-  try {
-    const db = await openDB();
-    if (db) {
-      const list = await new Promise((resolve) => {
-        const tx = db.transaction(STORES.USERS, 'readonly');
-        const req = tx.objectStore(STORES.USERS).getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
-      });
-
-      if (list && list.length > 0) {
-        const map = {};
-        list.forEach(u => { map[u.email] = u; });
-        return map;
-      }
-    }
-  } catch (err) {}
-
-  return JSON.parse(localStorage.getItem('rookx_users_db') || '{}');
+  const user = await fetchCurrentUser();
+  if (user && user.email) {
+    return { [user.email]: user };
+  }
+  return {};
 }
 
-// Save Active Session Record
+// Save Active Session Record (JWT token based)
 export async function saveSessionToDB(sessionData) {
-  try {
-    const db = await openDB();
-    if (db) {
-      const tx = db.transaction(STORES.SESSIONS, 'readwrite');
-      tx.objectStore(STORES.SESSIONS).put({ key: 'active_session', ...sessionData });
-    }
-  } catch (err) {}
-
-  localStorage.setItem('rookx_session', JSON.stringify(sessionData));
+  if (!sessionData || !sessionData.isAuthenticated) {
+    clearAuthToken();
+  }
 }
 
-// Export Full Database Backup (JSON File)
+// Export Full User Cloud Data Backup (JSON File)
 export async function exportDatabaseBackup() {
-  const users = await getAllUsersFromDB();
-  const session = localStorage.getItem('rookx_session');
+  const user = await fetchCurrentUser();
   const backup = {
-    appName: 'RookX Career Decision Engine',
-    databaseVersion: DB_VERSION,
+    appName: 'RookX Career Decision Engine (MongoDB Cloud)',
     exportTimestamp: new Date().toISOString(),
-    users,
-    session
+    user: user || null
   };
 
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `RookX_Database_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+  downloadAnchor.setAttribute("download", `RookX_Cloud_Backup_${new Date().toISOString().slice(0, 10)}.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
 }
 
-// Import & Restore Database Backup
+// Import & Restore User Cloud Backup
 export async function importDatabaseBackup(jsonContent) {
   try {
     const backup = JSON.parse(jsonContent);
-    if (backup && backup.users && typeof backup.users === 'object') {
-      for (const email in backup.users) {
-        await saveUserToDB(backup.users[email]);
-      }
-      if (backup.session) {
-        try {
-          const sessionObj = typeof backup.session === 'string' ? JSON.parse(backup.session) : backup.session;
-          await saveSessionToDB(sessionObj);
-        } catch (e) {}
-      }
+    if (backup && backup.user && typeof backup.user === 'object') {
+      await saveUserToDB(backup.user);
       return true;
     }
   } catch (err) {

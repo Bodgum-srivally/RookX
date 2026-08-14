@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Terminal, BarChart3, Layout, ShieldAlert, Briefcase, 
-  CheckCircle2, XCircle, ArrowRight, RotateCcw, Award, Sparkles, HelpCircle, ChevronRight
+  CheckCircle2, XCircle, ArrowRight, RotateCcw, Award, Sparkles, HelpCircle, ChevronRight, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { generateAIQuestions } from '../services/aiQuestionService';
 
 export default function TryBeforeYouCommit({ profile, onCompleteSimulation, setTab }) {
   const [selectedCareerId, setSelectedCareerId] = useState('software_engineer');
@@ -13,6 +14,8 @@ export default function TryBeforeYouCommit({ profile, onCompleteSimulation, setT
   const [userAnswers, setUserAnswers] = useState({}); // { qIdx: selectedOption }
   const [showExplanation, setShowExplanation] = useState(false);
   const [resultSummary, setResultSummary] = useState(null);
+  const [seenQuestionIds, setSeenQuestionIds] = useState([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
   const CAREERS = [
     {
@@ -451,20 +454,88 @@ const query = "SELECT * FROM users WHERE username = '" + req.body.username + "' 
     ]
   };
 
-  // Helper to pick 3 random unique questions from pool
-  const getRandomThreeQuestions = (careerId) => {
-    const pool = QUESTION_BANK[careerId] || QUESTION_BANK.software_engineer;
-    const shuffled = [...pool].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 3);
+  // Helper: Shuffle question options and randomly position the correct answer across A, B, C, D
+  const shuffleAndFormatOptions = (question) => {
+    if (!question || !question.options) return question;
+
+    // Clone options array and perform Fisher-Yates shuffle
+    const optionsCopy = question.options.map(o => ({ ...o }));
+    for (let i = optionsCopy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [optionsCopy[i], optionsCopy[j]] = [optionsCopy[j], optionsCopy[i]];
+    }
+
+    const labels = ['A', 'B', 'C', 'D'];
+    const relabeledOptions = optionsCopy.map((opt, idx) => ({
+      ...opt,
+      id: labels[idx] || opt.id || `o_${idx}`
+    }));
+
+    return {
+      ...question,
+      options: relabeledOptions
+    };
   };
 
-  const handleStartSimulation = (careerId) => {
+  const handleStartSimulation = async (careerId) => {
     setSelectedCareerId(careerId);
-    const selected3 = getRandomThreeQuestions(careerId);
-    setActiveQuestions(selected3);
-    setCurrentQuestionIdx(0);
+    setIsLoadingQuestions(true);
     setUserAnswers({});
     setShowExplanation(false);
+
+    // Map career ID to skill category
+    const catMap = {
+      software_engineer: 'dsa',
+      data_scientist: 'sql',
+      ui_ux_designer: 'aptitude',
+      cybersecurity_analyst: 'python',
+      product_manager: 'aptitude'
+    };
+    const category = catMap[careerId] || 'dsa';
+    const careerObj = CAREERS.find(c => c.id === careerId) || CAREERS[0];
+
+    // Try fetching dynamic questions
+    const aiGenerated = await generateAIQuestions({
+      category,
+      career: careerObj.name,
+      roadmapWeek: 'Simulation Stage',
+      weeklyTasks: ['Scenario Task 1', 'Scenario Task 2', 'Scenario Task 3'],
+      difficulty: 'Easy',
+      count: 3
+    });
+
+    let chosen3 = [];
+
+    if (aiGenerated && aiGenerated.length >= 3) {
+      chosen3 = aiGenerated.slice(0, 3).map((q, i) => ({
+        id: q.id || `ai_sim_${i}_${Date.now()}`,
+        title: `Task ${i + 1}: ${q.topic || 'Workplace Scenario'}`,
+        scenario: q.question,
+        codeSnippet: q.codeSnippet || '',
+        options: q.options
+      }));
+    } else {
+      // Fallback to local QUESTION_BANK if AI unavailable
+      const pool = QUESTION_BANK[careerId] || QUESTION_BANK.software_engineer;
+      // Exclude already seen questions if possible
+      let available = pool.filter(q => !seenQuestionIds.includes(q.id));
+      if (available.length < 3) {
+        available = pool; // Reset if all were seen
+      }
+      const shuffled = [...available].sort(() => 0.5 - Math.random());
+      chosen3 = shuffled.slice(0, 3);
+    }
+
+    // Shuffle options for EVERY question to randomize correct answer placement
+    const randomized3 = chosen3.map(q => shuffleAndFormatOptions(q));
+
+    // Update seen question history
+    const newIds = randomized3.map(q => q.id);
+    setSeenQuestionIds(prev => [...prev, ...newIds]);
+
+    setActiveQuestions(randomized3);
+    setCurrentQuestionIdx(0);
+    setIsLoadingQuestions(false);
     setSimulationState('active');
   };
 
@@ -563,7 +634,7 @@ const query = "SELECT * FROM users WHERE username = '" + req.body.username + "' 
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               Select A Career Simulation (3 Scenarios Each)
             </h2>
-            <span className="text-xs text-slate-400">Dynamic AI Scenario Bank (30 Tasks)</span>
+            <span className="text-xs text-slate-400">Dynamic Scenario Bank (30 Tasks)</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

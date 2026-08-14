@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { ASSESSMENT_QUESTIONS, DISCOVERY_SCENARIOS } from '../data/careerData';
-import { HelpCircle, Award, ArrowRight, RotateCcw, AlertTriangle, Compass, CheckCircle2 } from 'lucide-react';
+import { HelpCircle, Award, ArrowRight, RotateCcw, AlertTriangle, Compass, CheckCircle2, Sparkles, RefreshCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { generateAIQuestions } from '../services/aiQuestionService';
 
-export default function Assessment({ onComplete }) {
+export default function Assessment({ onComplete, targetCareerId = 'software_engineer' }) {
   const [stage, setStage] = useState('intro'); // intro, discovery, diagnostic, results
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [questionsList, setQuestionsList] = useState(ASSESSMENT_QUESTIONS);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
   
   // Discovery State
   const [discoveryAnswers, setDiscoveryAnswers] = useState({}); // { scenarioId: career_id }
@@ -19,7 +22,32 @@ export default function Assessment({ onComplete }) {
     setCurrentQuestionIndex(0);
   };
 
-  const startDiagnostic = () => {
+  const startDiagnostic = async () => {
+    setIsLoadingAI(true);
+    const aiQuestions = await generateAIQuestions({
+      category: 'dsa',
+      career: (targetCareerId || 'software_engineer').replace('_', ' '),
+      roadmapWeek: 'Assessment Stage',
+      weeklyTasks: ['Coding Logic', 'Database SQL', 'Aptitude & Math', 'Communication'],
+      difficulty: 'Easy',
+      count: 4
+    });
+
+    if (aiQuestions && aiQuestions.length > 0) {
+      // Map AI questions to assessment structure
+      const mapped = aiQuestions.map((q, idx) => ({
+        id: q.id || `ai_diag_${idx}`,
+        category: idx === 0 ? 'coding' : idx === 1 ? 'sql' : idx === 2 ? 'aptitude' : 'communication',
+        question: q.question,
+        options: q.options.map(o => o.text),
+        correctIndex: Math.max(0, q.options.findIndex(o => o.isCorrect))
+      }));
+      setQuestionsList(mapped);
+    } else {
+      setQuestionsList(ASSESSMENT_QUESTIONS);
+    }
+
+    setIsLoadingAI(false);
     setStage('diagnostic');
     setCurrentQuestionIndex(0);
   };
@@ -37,10 +65,10 @@ export default function Assessment({ onComplete }) {
   };
 
   const handleDiagnosticSelect = (optionIndex) => {
-    const question = ASSESSMENT_QUESTIONS[currentQuestionIndex];
+    const question = questionsList[currentQuestionIndex];
     setDiagnosticAnswers(prev => ({ ...prev, [question.id]: optionIndex }));
     
-    if (currentQuestionIndex < ASSESSMENT_QUESTIONS.length - 1) {
+    if (currentQuestionIndex < questionsList.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
       // Completed diagnostic, evaluate scores
@@ -74,16 +102,17 @@ export default function Assessment({ onComplete }) {
       communication: { correct: 0, total: 0 }
     };
 
-    ASSESSMENT_QUESTIONS.forEach(q => {
+    questionsList.forEach(q => {
       const userChoiceIndex = diagnosticAnswers[q.id];
-      const isCorrect = userChoiceIndex !== undefined && q.options[userChoiceIndex].isCorrect;
+      const isCorrect = userChoiceIndex !== undefined && (q.correctIndex !== undefined ? userChoiceIndex === q.correctIndex : q.options[userChoiceIndex]?.isCorrect);
       
-      if (!categoryStats[q.category]) {
-        categoryStats[q.category] = { correct: 0, total: 0 };
+      const catKey = q.category || 'coding';
+      if (!categoryStats[catKey]) {
+        categoryStats[catKey] = { correct: 0, total: 0 };
       }
-      categoryStats[q.category].total += 1;
+      categoryStats[catKey].total += 1;
       if (isCorrect) {
-        categoryStats[q.category].correct += 1;
+        categoryStats[catKey].correct += 1;
       }
     });
 
@@ -226,33 +255,33 @@ export default function Assessment({ onComplete }) {
         <div className="space-y-6">
           <div className="flex justify-between items-center text-xs font-mono text-slate-400">
             <span className="text-cyber-neonRose font-bold">PART 2: SKILL QUIZ</span>
-            <span>Question {currentQuestionIndex + 1} of {ASSESSMENT_QUESTIONS.length}</span>
+            <span>Question {currentQuestionIndex + 1} of {questionsList.length}</span>
           </div>
 
           <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
             <div 
               className="bg-cyber-neonRose h-full transition-all duration-300"
-              style={{ width: `${((currentQuestionIndex + 1) / ASSESSMENT_QUESTIONS.length) * 100}%` }}
+              style={{ width: `${((currentQuestionIndex + 1) / questionsList.length) * 100}%` }}
             ></div>
           </div>
 
           <div className="p-5 border border-cyber-border bg-cyber-dark/40 rounded-lg min-h-[90px] flex items-center justify-center flex-col">
             <span className="hud-label text-[10px] text-cyber-neonRose mb-2 font-mono uppercase">
-              Category: {ASSESSMENT_QUESTIONS[currentQuestionIndex].category}
+              Category: {questionsList[currentQuestionIndex]?.category || 'technical'}
             </span>
             <p className="text-sm text-white text-center font-mono leading-relaxed">
-              {ASSESSMENT_QUESTIONS[currentQuestionIndex].text}
+              {questionsList[currentQuestionIndex]?.question || questionsList[currentQuestionIndex]?.text}
             </p>
           </div>
 
           <div className="space-y-3">
-            {ASSESSMENT_QUESTIONS[currentQuestionIndex].options.map((opt, i) => (
+            {(questionsList[currentQuestionIndex]?.options || []).map((opt, i) => (
               <button
                 key={i}
                 onClick={() => handleDiagnosticSelect(i)}
                 className="w-full text-left p-3.5 rounded-lg border border-cyber-border bg-cyber-dark/20 text-sm text-slate-300 hover:border-cyber-neonRose hover:bg-cyber-neonRose/5 hover:text-white transition-all font-mono cursor-pointer"
               >
-                {opt.text}
+                {typeof opt === 'string' ? opt : opt.text}
               </button>
             ))}
           </div>

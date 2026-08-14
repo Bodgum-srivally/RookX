@@ -1,13 +1,30 @@
 import React, { useState } from 'react';
 import { CAREER_LIST } from '../data/careerData';
+import { ALL_MISSIONS } from './MissionsPage';
 import { 
   Activity, Compass, Cpu, Award, ArrowRight, X, CheckCircle2, 
-  Sparkles, TrendingUp, Target, Zap, ShieldCheck, Flame, ChevronRight, Layers
+  Sparkles, TrendingUp, Target, Zap, ShieldCheck, Flame, ChevronRight, Layers, Briefcase,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { getLevelInfo } from '../utils/gamification';
 
 export default function Dashboard({ profile, assessment, targetCareerId, setTab, onSelectTarget, gamificationState }) {
   const [showWhyModal, setShowWhyModal] = useState(false);
+  const [isProgressExpanded, setIsProgressExpanded] = useState(false);
+
+  // Find active uncompleted mission for Overview summary card
+  const getActiveMission = () => {
+    const completedTasks = gamificationState?.completedTasks || [];
+    const catKeys = ['dsa', 'python', 'sql', 'js', 'html_css', 'java', 'aptitude'];
+    for (const cat of catKeys) {
+      const list = ALL_MISSIONS[cat] || [];
+      const uncompleted = list.find(m => !completedTasks.includes(m.id));
+      if (uncompleted) return uncompleted;
+    }
+    return null;
+  };
+
+  const activeMission = getActiveMission();
 
   const getBlendedMetric = (profileVal, assessmentVal) => {
     const p = profileVal !== undefined ? Number(profileVal) : 50;
@@ -102,17 +119,32 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
   const levelInfo = getLevelInfo(gamificationState?.xp || 450);
   const userName = profile.fullName ? profile.fullName.split(' ')[0] : 'Student';
 
-  // 8-Step Journey Definition
+  // 7-Step Journey Definition
   const JOURNEY_STEPS = [
     { id: 1, title: 'Assess Fit', desc: 'Career Fit Test', tab: 'assessment', icon: Compass, isDone: hasAssessment },
     { id: 2, title: 'Discover Paths', desc: 'Compare Matches', tab: 'decision', icon: Layers, isDone: hasAssessment },
     { id: 3, title: 'Try Work', desc: 'Try Before Commit', tab: 'try_career', icon: Sparkles, isDone: (gamificationState?.triedSimulations?.length || 0) > 0 },
     { id: 4, title: 'Reality Check', desc: 'Market Benchmark', tab: 'reality', icon: Activity, isDone: true },
-    { id: 5, title: 'Progress Plan', desc: 'Readiness Projection', tab: 'progress', icon: TrendingUp, isDone: true },
-    { id: 6, title: 'Action Roadmap', desc: '4-Week Growth', tab: 'roadmap', icon: Target, isDone: (gamificationState?.completedTasks?.length || 0) > 0 },
-    { id: 7, title: 'Earn XP & Badges', desc: 'Unlock Achievements', tab: 'xp_badges', icon: Award, isDone: (gamificationState?.unlockedBadges?.length || 0) > 0 },
-    { id: 8, title: 'Career Ready', desc: 'Reach > 80% Readiness', tab: 'progress', icon: ShieldCheck, isDone: readinessIndex >= 80 }
+    { id: 5, title: 'Action Roadmap', desc: '4-Week Growth', tab: 'roadmap', icon: Target, isDone: (gamificationState?.completedTasks?.length || 0) > 0 },
+    { id: 6, title: 'Earn XP & Badges', desc: 'Unlock Achievements', tab: 'xp_badges', icon: Award, isDone: (gamificationState?.unlockedBadges?.length || 0) > 0 },
+    { id: 7, title: 'Career Ready', desc: 'Reach > 80% Readiness', tab: 'progress', icon: ShieldCheck, isDone: readinessIndex >= 80 }
   ];
+
+  const handleMissionSubmit = (e) => {
+    e.preventDefault();
+    const isQ1Correct = q1Answer === 'A';
+    const isQ2Correct = q2Answer === 'B';
+
+    setMissionSubmitted(true);
+    if (isQ1Correct && isQ2Correct) {
+      setMissionPassed(true);
+      if (onAwardXP) {
+        onAwardXP(50, 'Completed DSA Mission: 2 Algorithms Problems', { taskId: 'mission_dsa_2' });
+      }
+    } else {
+      setMissionPassed(false);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fadeIn font-mono pb-12">
@@ -148,64 +180,139 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
         </div>
       </div>
 
-      {/* IMPORTANT STATS BAR (Part 11 Requirement) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* SINGLE CLICKABLE EXPANDABLE "YOUR PROGRESS" CARD */}
+      <section className="glass-panel border-glow-purple p-4 sm:p-5 rounded-2xl font-mono scanlines transition-all duration-300">
         
-        <div className="p-4 rounded-xl border border-cyber-neonCyan/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
-          <span className="text-[10px] text-slate-400 block uppercase font-bold">CAREER READINESS</span>
-          <span className="text-2xl sm:text-3xl font-extrabold text-cyber-neonCyan">{readinessIndex}%</span>
-          <span className="text-[9px] text-slate-400 block">Baseline Readiness</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-cyber-neonPurple/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(168,85,247,0.15)]">
-          <span className="text-[10px] text-slate-400 block uppercase font-bold">ROOKX LEVEL</span>
-          <span className="text-2xl sm:text-3xl font-extrabold text-cyber-neonPurple">LVL {levelInfo.level}</span>
-          <span className="text-[9px] text-cyber-neonPurple block truncate font-bold">{levelInfo.name}</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-amber-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(251,191,36,0.15)]">
-          <span className="text-[10px] text-slate-400 block uppercase font-bold">TOTAL XP</span>
-          <span className="text-2xl sm:text-3xl font-extrabold text-amber-400">{(gamificationState?.xp || 450).toLocaleString()}</span>
-          <span className="text-[9px] text-amber-400 block font-bold">Career XP Points</span>
-        </div>
-
-        <div className="p-4 rounded-xl border border-emerald-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(52,211,153,0.15)]">
-          <span className="text-[10px] text-slate-400 block uppercase font-bold">CURRENT CAREER</span>
-          <span className="text-base sm:text-lg font-bold text-white block truncate">{activeCareer.name}</span>
-          <span className="text-[9px] text-emerald-400 block font-bold">{activeCareer.compatibility}% Compatibility</span>
-        </div>
-
-        <div className="col-span-2 sm:col-span-1 p-4 rounded-xl border border-rose-400/40 bg-cyber-dark/60 text-center space-y-1 shadow-[0_0_15px_rgba(251,113,133,0.15)]">
-          <span className="text-[10px] text-slate-400 block uppercase font-bold">ROADMAP PROGRESS</span>
-          <span className="text-2xl sm:text-3xl font-extrabold text-rose-400">68%</span>
-          <span className="text-[9px] text-slate-400 block">4-Week Completion</span>
-        </div>
-
-      </div>
-
-      {/* YOUR NEXT MISSION CARD (Part 11 Requirement) */}
-      <div className="glass-panel border-glow-purple p-6 rounded-2xl relative scanlines flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold border border-amber-400/40 bg-amber-400/10 text-amber-400 uppercase">
-            <Zap size={12} className="animate-pulse" /> RECOMMENDED ACTION MISSION
+        {/* Clickable Header Banner */}
+        <div 
+          onClick={() => setIsProgressExpanded(prev => !prev)}
+          className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 cursor-pointer group select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl border border-cyber-neonPurple/40 bg-cyber-neonPurple/15 text-cyber-neonPurple group-hover:scale-105 transition-all">
+              <TrendingUp size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider group-hover:text-cyber-neonPurple transition-all">
+                  YOUR PROGRESS
+                </h3>
+                <span className="text-[9px] px-2 py-0.5 rounded-full border border-cyber-neonPurple/40 bg-cyber-neonPurple/10 text-cyber-neonPurple font-bold uppercase">
+                  LVL {levelInfo.level} • {readinessIndex}% READINESS
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                View your career journey progress and live performance metrics
+              </p>
+            </div>
           </div>
-          <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
-            🧩 Mission: Solve 2 Data Structures & Algorithms Problems
-          </h3>
-          <p className="text-xs text-slate-300 max-w-xl">
-            Target Skill: <strong className="text-cyber-neonCyan">Problem Solving & Logic</strong> • Est Time: <strong className="text-amber-400">30 Min</strong>
-          </p>
-          <div className="flex items-center gap-3 text-xs font-bold pt-1">
-            <span className="text-purple-400 px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/30">+50 XP</span>
-            <span className="text-cyan-400 px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/30">+2% Career Readiness</span>
+
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-cyber-border/80 bg-cyber-dark/80 text-xs font-bold text-cyber-neonCyan group-hover:border-cyber-neonPurple group-hover:text-white transition-all shrink-0">
+            <span>{isProgressExpanded ? 'Hide Details' : 'View Details'}</span>
+            {isProgressExpanded ? (
+              <ChevronUp size={16} className="text-cyber-neonPurple" />
+            ) : (
+              <ChevronDown size={16} className="text-cyber-neonCyan group-hover:text-cyber-neonPurple" />
+            )}
+          </div>
+        </div>
+
+        {/* Expandable Details Panel */}
+        {isProgressExpanded && (
+          <div className="pt-4 mt-4 border-t border-cyber-border/60 animate-fadeIn space-y-3 font-mono">
+            <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest px-1">
+              <span>LIVE CAREER PROGRESS BREAKDOWN</span>
+              <span>UPDATED METRICS</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              
+              {/* 1. CAREER READINESS */}
+              <div className="p-3 rounded-xl border border-cyber-neonCyan/40 bg-cyber-dark/60 flex items-center justify-between gap-3 shadow-[0_0_12px_rgba(6,182,212,0.12)]">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider truncate">CAREER READINESS</span>
+                  <span className="text-xl font-extrabold text-cyber-neonCyan block mt-0.5">{readinessIndex}%</span>
+                  <span className="text-[9px] text-slate-400 block truncate">Career Preparedness</span>
+                </div>
+                <Activity size={18} className="text-cyber-neonCyan shrink-0" />
+              </div>
+
+              {/* 2. ROOKX LEVEL */}
+              <div className="p-3 rounded-xl border border-cyber-neonPurple/40 bg-cyber-dark/60 flex items-center justify-between gap-3 shadow-[0_0_12px_rgba(168,85,247,0.12)]">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider truncate">ROOKX LEVEL</span>
+                  <span className="text-xl font-extrabold text-cyber-neonPurple block mt-0.5">LVL {levelInfo.level}</span>
+                  <span className="text-[9px] text-cyber-neonPurple block truncate font-bold">{levelInfo.name}</span>
+                </div>
+                <Award size={18} className="text-cyber-neonPurple shrink-0" />
+              </div>
+
+              {/* 3. TOTAL XP */}
+              <div className="p-3 rounded-xl border border-amber-400/40 bg-cyber-dark/60 flex items-center justify-between gap-3 shadow-[0_0_12px_rgba(251,191,36,0.12)]">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider truncate">TOTAL XP</span>
+                  <span className="text-xl font-extrabold text-amber-400 block mt-0.5">{(gamificationState?.xp || 450).toLocaleString()} XP</span>
+                  <span className="text-[9px] text-amber-400 block font-bold truncate">Quiz & Task XP</span>
+                </div>
+                <Zap size={18} className="text-amber-400 shrink-0" />
+              </div>
+
+              {/* 4. CURRENT CAREER */}
+              <div className="p-3 rounded-xl border border-emerald-400/40 bg-cyber-dark/60 flex items-center justify-between gap-3 shadow-[0_0_12px_rgba(52,211,153,0.12)]">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider truncate">CURRENT CAREER</span>
+                  <span className="text-xs font-bold text-white block truncate leading-tight mt-1">{activeCareer.name}</span>
+                  <span className="text-[9px] text-emerald-400 block font-bold truncate">{activeCareer.compatibility}% Fit Score</span>
+                </div>
+                <Briefcase size={18} className="text-emerald-400 shrink-0" />
+              </div>
+
+              {/* 5. ROADMAP PROGRESS */}
+              <div className="p-3 rounded-xl border border-rose-400/40 bg-cyber-dark/60 flex items-center justify-between gap-3 shadow-[0_0_12px_rgba(251,113,133,0.12)] sm:col-span-2 lg:col-span-1">
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider truncate">ROADMAP PROGRESS</span>
+                  <span className="text-xl font-extrabold text-rose-400 block mt-0.5">68%</span>
+                  <span className="text-[9px] text-slate-400 block truncate">4-Week Completion</span>
+                </div>
+                <Target size={18} className="text-rose-400 shrink-0" />
+              </div>
+
+            </div>
+          </div>
+        )}
+
+      </section>
+
+      {/* RECOMMENDED ACTION MISSION SUMMARY CARD */}
+      <div className="glass-panel border-glow-purple p-5 rounded-2xl relative scanlines flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+            <Zap size={22} className="animate-pulse" />
+          </div>
+          <div className="space-y-1 font-mono">
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-400/40 bg-amber-400/10 text-amber-400 uppercase">
+              CURRENT RECOMMENDED MISSION
+            </div>
+            <h3 className="text-base font-extrabold text-white">
+              {activeMission ? activeMission.title : 'All Skill Missions Completed! 🎉'}
+            </h3>
+            <p className="text-xs text-slate-300">
+              {activeMission ? (
+                <>
+                  Topic: <strong className="text-cyber-neonCyan">{activeMission.topic}</strong> • Reward: <strong className="text-purple-400">+{activeMission.xpReward} XP</strong>
+                </>
+              ) : (
+                <span className="text-emerald-400 font-bold">You have completed all current practice missions!</span>
+              )}
+            </p>
           </div>
         </div>
 
         <button
-          onClick={() => setTab('roadmap')}
-          className="cyber-btn cyber-btn-purple px-6 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 shrink-0 shadow-lg cursor-pointer"
+          onClick={() => setTab('missions')}
+          className="cyber-btn cyber-btn-purple px-6 py-3 rounded-xl text-xs font-mono font-bold text-white flex items-center gap-2 shrink-0 shadow-lg cursor-pointer"
         >
-          START MISSION <ArrowRight size={14} />
+          GO TO MISSIONS PAGE <ArrowRight size={14} />
         </button>
       </div>
 
@@ -214,12 +321,12 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <Layers size={16} className="text-cyber-neonPurple" />
-            Your 8-Step Career Journey Roadmap
+            Your Career Journey Roadmap
           </h3>
           <span className="text-xs text-slate-400">Click any step to jump to action</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {JOURNEY_STEPS.map((step) => {
             const Icon = step.icon;
             return (
@@ -331,105 +438,74 @@ export default function Dashboard({ profile, assessment, targetCareerId, setTab,
           )}
         </div>
 
-        {/* Right Side: Key Profile Stats */}
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Readiness Monitor */}
-          <div className="glass-panel border-glow-cyan p-5 rounded-xl flex flex-col justify-between">
-            <span className="hud-label text-cyber-neonCyan font-bold">CAREER READINESS MONITOR</span>
-            
-            <div className="space-y-4 my-2">
-              <h4 className="text-xs font-mono text-slate-400 uppercase">Career Readiness Score</h4>
-              {hasAssessment ? (
-                <>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-extrabold font-mono text-white">{readinessIndex}%</span>
-                    <span className="text-xs text-cyber-neonCyan font-mono">Readiness Index</span>
+        {/* Right Side: Redesigned Target Alignment Fit Card */}
+        <div className="lg:col-span-2 glass-panel border-glow-rose p-6 rounded-xl flex flex-col justify-between scanlines min-h-[380px]">
+          <div className="space-y-4 font-mono">
+            <div className="flex justify-between items-center border-b border-cyber-border/60 pb-3">
+              <h3 className="text-xs font-bold font-mono tracking-wider text-white uppercase flex items-center gap-2">
+                <Target className="text-cyber-neonRose" size={16} />
+                TARGET ALIGNMENT FIT
+              </h3>
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-cyber-neonRose/20 text-cyber-neonRose border border-cyber-neonRose/30">
+                GOAL ALIGNMENT
+              </span>
+            </div>
+
+            {hasAssessment ? (
+              <div className="space-y-4">
+                <div className="p-3.5 border border-cyber-border rounded-lg bg-cyber-dark/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">Target Career Goal</span>
+                    <span className="text-base font-extrabold text-white block mt-0.5">{activeCareer.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-cyber-neonRose block">{activeCareer.compatibility}%</span>
+                    <span className="text-[10px] text-cyber-neonRose font-bold">Fit Score</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs text-slate-300 font-bold">
+                    <span>Compatibility Alignment</span>
+                    <span className="text-cyber-neonRose">{activeCareer.compatibility}%</span>
                   </div>
                   <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-cyber-border">
                     <div 
-                      className="bg-cyber-neonCyan h-full transition-all duration-300"
-                      style={{ width: `${readinessIndex}%` }}
+                      className="bg-gradient-to-r from-purple-500 via-rose-500 to-cyber-neonRose h-full transition-all duration-500"
+                      style={{ width: `${activeCareer.compatibility}%` }}
                     />
                   </div>
-                </>
-              ) : (
-                <div className="p-3 border border-cyber-border rounded bg-cyber-dark/40 text-xs text-amber-400 font-mono">
-                  Analysis Pending — Take career test to calculate your readiness score.
                 </div>
-              )}
-            </div>
 
-            <button 
-              onClick={() => setTab('progress')}
-              className="text-left text-xs font-mono text-cyber-neonCyan hover:underline flex items-center gap-1 mt-4 font-bold cursor-pointer"
-            >
-              Simulate career progress <ChevronRight className="inline" size={12} />
-            </button>
-          </div>
-
-          {/* Target Alignment Fit */}
-          <div className="glass-panel border-glow-rose p-5 rounded-xl flex flex-col justify-between">
-            <span className="hud-label text-cyber-neonRose font-bold">TARGET ALIGNMENT FIT</span>
-
-            <div className="space-y-4 my-2 font-mono">
-              <h4 className="text-xs font-mono text-slate-400 uppercase">Target Compatibility Score</h4>
-              {hasAssessment ? (
-                <>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-extrabold text-white">{activeCareer.compatibility}%</span>
-                    <span className="text-xs text-cyber-neonRose">Compatibility Fit</span>
+                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                  <div className="p-2.5 rounded-lg border border-cyber-border bg-cyber-dark/30 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 uppercase block font-semibold">Skills Match</span>
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Verified
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-300">
-                    Primary Goal: <strong className="text-white">{activeCareer.name}</strong>
-                  </p>
-                </>
-              ) : (
-                <div className="p-3 border border-cyber-border rounded bg-cyber-dark/40 text-xs text-amber-400 font-mono">
-                  Analysis Pending — Complete test to unlock target fit score.
+                  <div className="p-2.5 rounded-lg border border-cyber-border bg-cyber-dark/30 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 uppercase block font-semibold">Interest Alignment</span>
+                    <span className="text-xs font-bold text-cyber-neonCyan flex items-center gap-1">
+                      <Sparkles size={12} /> Confirmed
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <button 
-              onClick={() => setTab('decision')}
-              className="text-left text-xs font-mono text-cyber-neonRose hover:underline flex items-center gap-1 mt-4 font-bold cursor-pointer"
-            >
-              Compare career matches <ChevronRight className="inline" size={12} />
-            </button>
+              </div>
+            ) : (
+              <div className="p-4 border border-cyber-border rounded-xl bg-cyber-dark/40 text-xs text-amber-400 font-mono space-y-2">
+                <p className="font-bold">Analysis Pending</p>
+                <p className="text-slate-400">Complete your assessment to unlock target compatibility metrics.</p>
+              </div>
+            )}
           </div>
 
-          {/* Quick Tools */}
-          <div className="md:col-span-2 glass-panel border-glow-purple p-5 rounded-xl">
-            <span className="hud-label text-cyber-neonPurple font-bold">CAREER DECISION ENGINE TOOLS</span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-              <button 
-                onClick={() => setTab('try_career')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
-              >
-                🎮 Try Career
-              </button>
-              <button 
-                onClick={() => setTab('reality')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
-              >
-                ⚖️ Reality Check
-              </button>
-              <button 
-                onClick={() => setTab('resume')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
-              >
-                📁 Resume Checker
-              </button>
-              <button 
-                onClick={() => setTab('parent')}
-                className="p-3 border border-cyber-border bg-cyber-dark/40 text-center rounded-lg hover:border-cyber-neonPurple transition-all font-mono text-xs text-slate-300 hover:text-white font-bold cursor-pointer"
-              >
-                👨‍👩‍👦 Parent Report
-              </button>
-            </div>
-          </div>
-
+          <button 
+            onClick={() => setTab('decision')}
+            className="cyber-btn cyber-btn-rose w-full py-2.5 rounded text-xs font-mono tracking-wider font-bold text-white flex items-center justify-center gap-2 mt-4 cursor-pointer"
+          >
+            COMPARE ALL CAREER MATCHES <ArrowRight size={14} />
+          </button>
         </div>
 
       </div>

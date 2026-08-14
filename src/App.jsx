@@ -4,6 +4,7 @@ import './App.css';
 // Importing custom components
 import HomePage from './components/HomePage';
 import Dashboard from './components/Dashboard';
+import MissionsPage from './components/MissionsPage';
 import ProfileForm from './components/ProfileForm';
 import Assessment from './components/Assessment';
 import DecisionEngine from './components/DecisionEngine';
@@ -23,13 +24,15 @@ import CareerProgress from './components/CareerProgress';
 import RookXXP from './components/RookXXP';
 
 import { saveUserToDB, getUserFromDB, getAllUsersFromDB, saveSessionToDB } from './services/dbService';
+import { loginUser, registerUser, fetchCurrentUser, clearAuthToken, syncUserData, changePassword } from './services/apiService';
 import { getLevelInfo, BADGES, evaluateBadges } from './utils/gamification';
 
 // Lucide Icons
 import { 
   Home, Activity, Compass, Layers, BarChart3, 
   Target, Calendar, FileText, Users, Sparkles, RefreshCw,
-  Sun, Moon, UserCheck, Lock, LogIn, Award, TrendingUp, X
+  Sun, Moon, UserCheck, Lock, LogIn, Award, TrendingUp, X,
+  Menu, ArrowLeft, Zap
 } from 'lucide-react';
 
 export default function App() {
@@ -39,6 +42,10 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
 
+  // Navigation Drawer & History State
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  const [tabHistory, setTabHistory] = useState([]);
+
   // Toast Notification state
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -47,79 +54,37 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Users Database in localStorage
-  const [usersDb, setUsersDb] = useState(() => {
-    const saved = localStorage.getItem('rookx_users_db');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {};
-  });
-
-  // Active Session in localStorage
-  const [activeSession, setActiveSession] = useState(() => {
-    const saved = localStorage.getItem('rookx_session');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return { isAuthenticated: false, email: '' };
-  });
+  // Active Session State
+  const [activeSession, setActiveSession] = useState({ isAuthenticated: false, email: '' });
 
   // Target active goal career
   const [targetCareerId, setTargetCareerId] = useState('software_engineer');
 
   // Load active user profile data
-  const [profileData, setProfileData] = useState(() => {
-    if (activeSession.isAuthenticated && activeSession.email && usersDb[activeSession.email]) {
-      return usersDb[activeSession.email].profileData;
-    }
-    const saved = localStorage.getItem('rookx_user_profile');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
-      fullName: '',
-      email: '',
-      isOnboarded: false,
-      academic: { qualification: '2nd Year College', stream: 'Computer Science', gpa: '8.0' },
-      skills: { coding: 55, sql: 40, mathematics: 45, design_principles: 30, communication: 50, business_strategy: 35 },
-      interests: ['tech', 'data'],
-      preferences: { workStyle: 3, solvingStyle: 2, studyTime: '2-3 Hours' },
-      constraints: { location: 'Local', budget: '3-5 Lakhs/Yr', collegeType: 'Government' }
-    };
+  const [profileData, setProfileData] = useState({
+    fullName: '',
+    email: '',
+    isOnboarded: false,
+    academic: { qualification: '2nd Year College', stream: 'Computer Science', gpa: '8.0' },
+    skills: { coding: 55, sql: 40, mathematics: 45, design_principles: 30, communication: 50, business_strategy: 35 },
+    interests: ['tech', 'data'],
+    preferences: { workStyle: 3, solvingStyle: 2, studyTime: '2-3 Hours' },
+    constraints: { location: 'Local', budget: '3-5 Lakhs/Yr', collegeType: 'Government' }
   });
 
   // Load active user assessment scores
-  const [assessmentScores, setAssessmentScores] = useState(() => {
-    if (activeSession.isAuthenticated && activeSession.email && usersDb[activeSession.email]) {
-      return usersDb[activeSession.email].assessmentScores;
-    }
-    const saved = localStorage.getItem('rookx_assessment_scores');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
-      skills: { aptitude: 65, coding: 60, sql: 45, mathematics: 50, communication: 70 },
-      interests: { software_engineer: 80, data_scientist: 60, cybersecurity_analyst: 40, ui_ux_designer: 30 }
-    };
+  const [assessmentScores, setAssessmentScores] = useState({
+    skills: { aptitude: 65, coding: 60, sql: 45, mathematics: 50, communication: 70 },
+    interests: { software_engineer: 80, data_scientist: 60, cybersecurity_analyst: 40, ui_ux_designer: 30 }
   });
 
   // Gamification & XP State
-  const [gamificationState, setGamificationState] = useState(() => {
-    if (activeSession.isAuthenticated && activeSession.email && usersDb[activeSession.email]?.gamification) {
-      return usersDb[activeSession.email].gamification;
-    }
-    const saved = localStorage.getItem('rookx_gamification');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return {
-      xp: 450,
-      unlockedBadges: [],
-      triedSimulations: [],
-      completedTasks: [],
-      highestSimScore: 0
-    };
+  const [gamificationState, setGamificationState] = useState({
+    xp: 450,
+    unlockedBadges: [],
+    triedSimulations: [],
+    completedTasks: [],
+    highestSimScore: 0
   });
 
   // Default initial view to 'home'
@@ -137,36 +102,32 @@ export default function App() {
     }
   }, [theme]);
 
-  // Asynchronously sync database from IndexedDB on startup
+  // Check persistent login session via MongoDB backend on startup
   useEffect(() => {
-    async function initDB() {
-      const dbUsers = await getAllUsersFromDB();
-      if (dbUsers && Object.keys(dbUsers).length > 0) {
-        setUsersDb(prev => ({ ...prev, ...dbUsers }));
+    async function restoreSession() {
+      const user = await fetchCurrentUser();
+      if (user && user.email) {
+        setActiveSession({ isAuthenticated: true, email: user.email, fullName: user.fullName });
+        if (user.profileData) setProfileData(user.profileData);
+        if (user.assessmentScores) setAssessmentScores(user.assessmentScores);
+        if (user.gamification) setGamificationState(user.gamification);
       }
     }
-    initDB();
+    restoreSession();
   }, []);
 
-  // Sync profile, assessment & gamification data to database
+  // Sync profile, assessment & gamification data to MongoDB cloud database
   const syncActiveUserData = async (newProfile, newAssessment, newGamification) => {
+    const updatedProfile = newProfile || profileData;
+    const updatedAssessment = newAssessment || assessmentScores;
     const updatedGamification = newGamification || gamificationState;
-    localStorage.setItem('rookx_gamification', JSON.stringify(updatedGamification));
 
     if (activeSession.isAuthenticated && activeSession.email) {
-      const email = activeSession.email;
-      const updatedUser = {
-        ...usersDb[email],
-        email,
-        profileData: newProfile || profileData,
-        assessmentScores: newAssessment || assessmentScores,
+      await syncUserData({
+        profileData: updatedProfile,
+        assessmentScores: updatedAssessment,
         gamification: updatedGamification
-      };
-      const updatedDb = { ...usersDb, [email]: updatedUser };
-      setUsersDb(updatedDb);
-
-      // Save to IndexedDB persistent database & localStorage mirror
-      await saveUserToDB(updatedUser);
+      });
     }
   };
 
@@ -218,16 +179,14 @@ export default function App() {
 
   // Auth Handler: Login
   const handleLogin = async (email, password) => {
-    let user = usersDb[email];
-    if (!user) {
-      user = await getUserFromDB(email);
-    }
-    if (!user || user.password !== password) {
+    const response = await loginUser(email, password);
+    if (!response || !response.success || !response.user) {
       return false;
     }
-    const session = { email, isAuthenticated: true };
+
+    const user = response.user;
+    const session = { email: user.email, isAuthenticated: true, fullName: user.fullName };
     setActiveSession(session);
-    await saveSessionToDB(session);
 
     if (user.profileData) setProfileData(user.profileData);
     if (user.assessmentScores) setAssessmentScores(user.assessmentScores);
@@ -235,86 +194,47 @@ export default function App() {
 
     setShowAuthModal(false);
     setActiveTab('dashboard');
+    triggerToast('WELCOME BACK!', `Signed in as ${user.fullName || user.email}`, '🔑');
     return true;
   };
 
   // Auth Handler: Register
   const handleRegister = async (regData) => {
-    let existing = usersDb[regData.email] || (await getUserFromDB(regData.email));
-    if (existing) {
+    const response = await registerUser(regData);
+    if (!response || !response.success || !response.user) {
       return false;
     }
 
-    const newProfile = {
-      fullName: regData.fullName,
-      email: regData.email,
-      isOnboarded: true,
-      academic: regData.academic || { qualification: '2nd Year College', stream: 'Computer Science', gpa: '8.0' },
-      skills: { coding: 55, sql: 40, mathematics: 45, design_principles: 30, communication: 50, business_strategy: 35 },
-      interests: ['tech', 'data'],
-      preferences: { workStyle: 3, solvingStyle: 2, studyTime: '2-3 Hours' },
-      constraints: { location: 'Local', budget: '3-5 Lakhs/Yr', collegeType: 'Government' }
-    };
-
-    const initialAssessment = {
-      skills: { aptitude: 65, coding: 60, sql: 45, mathematics: 50, communication: 70 },
-      interests: { software_engineer: 80, data_scientist: 60, cybersecurity_analyst: 40, ui_ux_designer: 30 }
-    };
-
-    const initialGamification = {
-      xp: 450,
-      unlockedBadges: [],
-      triedSimulations: [],
-      completedTasks: [],
-      highestSimScore: 0
-    };
-
-    const newUserRecord = {
-      email: regData.email,
-      password: regData.password,
-      profileData: newProfile,
-      assessmentScores: initialAssessment,
-      gamification: initialGamification
-    };
-
-    const updatedDb = {
-      ...usersDb,
-      [regData.email]: newUserRecord
-    };
-
-    setUsersDb(updatedDb);
-    await saveUserToDB(newUserRecord);
-
-    const session = { email: regData.email, isAuthenticated: true };
+    const user = response.user;
+    const session = { email: user.email, isAuthenticated: true, fullName: user.fullName };
     setActiveSession(session);
-    await saveSessionToDB(session);
 
-    setProfileData(newProfile);
-    setAssessmentScores(initialAssessment);
-    setGamificationState(initialGamification);
+    if (user.profileData) setProfileData(user.profileData);
+    if (user.assessmentScores) setAssessmentScores(user.assessmentScores);
+    if (user.gamification) setGamificationState(user.gamification);
+
     setShowAuthModal(false);
     setActiveTab('assessment');
+    triggerToast('ACCOUNT CREATED!', 'Welcome to RookX. Let\'s start your career assessment.', '🚀');
     return true;
   };
 
   // Auth Handler: Logout
   const handleLogout = () => {
+    clearAuthToken();
     setActiveSession({ isAuthenticated: false, email: '' });
-    localStorage.removeItem('rookx_session');
     setActiveTab('home');
+    triggerToast('LOGGED OUT', 'You have been safely signed out.', '🔒');
   };
 
   // Auth Handler: Change Password
-  const handleChangePassword = (currentPass, newPass) => {
-    if (!activeSession.email || !usersDb[activeSession.email]) return false;
-    const user = usersDb[activeSession.email];
-    if (user.password !== currentPass) return false;
-
-    const updatedUser = { ...user, password: newPass };
-    const updatedDb = { ...usersDb, [activeSession.email]: updatedUser };
-    setUsersDb(updatedDb);
-    localStorage.setItem('rookx_users_db', JSON.stringify(updatedDb));
-    return true;
+  const handleChangePassword = async (currentPass, newPass) => {
+    const success = await changePassword(currentPass, newPass);
+    if (success) {
+      triggerToast('PASSWORD CHANGED', 'Your account password has been updated.', '🛡️');
+      return true;
+    }
+    return false;
   };
 
   const handleProfileSave = (updatedData) => {
@@ -360,18 +280,50 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  // Close navigation drawer when Escape key is pressed
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isNavOpen) {
+        setIsNavOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isNavOpen]);
+
   const handleSelectTargetCareer = (careerId) => {
     setTargetCareerId(careerId);
   };
 
   // Protected Tab Navigation Helper
-  const navigateTab = (tabName) => {
+  const navigateTab = (tabName, isBack = false) => {
     if (!activeSession.isAuthenticated && tabName !== 'home') {
       setAuthModalMode('login');
       setShowAuthModal(true);
+      setIsNavOpen(false);
       return;
     }
+    if (tabName === activeTab) {
+      setIsNavOpen(false);
+      return;
+    }
+
+    if (!isBack) {
+      setTabHistory(prev => [...prev, activeTab]);
+    }
     setActiveTab(tabName);
+    setIsNavOpen(false);
+  };
+
+  // In-App Back Navigation Handler
+  const handleGoBack = () => {
+    if (tabHistory.length === 0) {
+      setActiveTab('home');
+      return;
+    }
+    const previousTab = tabHistory[tabHistory.length - 1];
+    setTabHistory(prev => prev.slice(0, prev.length - 1));
+    setActiveTab(previousTab);
   };
 
   // Active view renderer
@@ -441,6 +393,18 @@ export default function App() {
             setTab={navigateTab}
             onSelectTarget={handleSelectTargetCareer}
             gamificationState={gamificationState}
+            onAwardXP={handleAwardXP}
+          />
+        );
+      case 'missions':
+        return (
+          <MissionsPage 
+            profile={profileData}
+            assessment={assessmentScores}
+            targetCareerId={targetCareerId}
+            gamificationState={gamificationState}
+            onAwardXP={handleAwardXP}
+            setTab={navigateTab}
           />
         );
       case 'onboarding':
@@ -488,6 +452,8 @@ export default function App() {
             gamificationState={gamificationState}
             readinessScore={54}
             setTab={navigateTab}
+            onAwardXP={handleAwardXP}
+            targetCareerId={targetCareerId}
           />
         );
       case 'decision':
@@ -563,6 +529,7 @@ export default function App() {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'dashboard', label: 'Overview Hub', icon: Activity },
+    { id: 'missions', label: 'Practice Missions', icon: Zap },
     { id: 'try_career', label: 'Try Before You Commit', icon: Sparkles },
     { id: 'progress', label: 'Career Progress', icon: TrendingUp },
     { id: 'xp_badges', label: 'RookX XP & Badges', icon: Award },
@@ -581,26 +548,56 @@ export default function App() {
       
       {/* Header Bar */}
       <header className="border-b border-cyber-border bg-cyber-dark/95 backdrop-blur-md sticky top-0 z-30 font-mono">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div 
-            onClick={() => setActiveTab('home')}
-            className="flex items-center gap-3 cursor-pointer select-none group"
-          >
-            <div className="w-8 h-8 rounded border border-cyber-neonPurple flex items-center justify-center font-extrabold text-white text-base shadow-[0_0_10px_rgba(168,85,247,0.3)] animate-pulse group-hover:scale-105 transition-all">
-              RX
+        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-2">
+          
+          {/* Left Header Group: Hamburger Toggle + Logo + Back Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* Hamburger Menu Icon Button */}
+            <button
+              onClick={() => setIsNavOpen(!isNavOpen)}
+              className="p-2 rounded-lg border border-cyber-border bg-cyber-dark/40 text-slate-300 hover:border-cyber-neonPurple hover:text-white transition-all cursor-pointer flex items-center justify-center shadow-sm"
+              title={isNavOpen ? "Close Navigation Menu" : "Open Navigation Menu"}
+              aria-label="Toggle navigation menu"
+            >
+              {isNavOpen ? <X size={18} className="text-cyber-neonPurple" /> : <Menu size={18} />}
+            </button>
+
+            {/* Brand Logo */}
+            <div 
+              onClick={() => navigateTab('home')}
+              className="flex items-center gap-2.5 cursor-pointer select-none group"
+            >
+              <div className="w-8 h-8 rounded border border-cyber-neonPurple flex items-center justify-center font-extrabold text-white text-base shadow-[0_0_10px_rgba(168,85,247,0.3)] animate-pulse group-hover:scale-105 transition-all">
+                RX
+              </div>
+              <div className="hidden xs:block sm:block">
+                <h1 className="text-lg font-extrabold text-white tracking-wider m-0 leading-none group-hover:text-cyber-neonPurple transition-colors">RookX</h1>
+                <span className="text-[9px] text-cyber-neonPurple block uppercase tracking-widest mt-0.5">Career Decision Engine</span>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-extrabold text-white tracking-wider m-0 leading-none group-hover:text-cyber-neonPurple transition-colors">RookX</h1>
-              <span className="text-[9px] text-cyber-neonPurple block uppercase tracking-widest mt-0.5">Career Decision Engine</span>
-            </div>
+
+            {/* In-App Back Button (Hidden on Home Page) */}
+            {activeTab !== 'home' && (
+              <button
+                onClick={handleGoBack}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyber-border bg-cyber-dark/60 text-xs font-bold text-slate-300 hover:border-cyber-neonPurple hover:text-white transition-all cursor-pointer shadow-sm group font-mono ml-1"
+                title="Return to previous page"
+              >
+                <ArrowLeft size={14} className="text-cyber-neonPurple group-hover:-translate-x-1 transition-transform" />
+                <span>BACK</span>
+              </button>
+            )}
+
           </div>
 
-          <div className="flex items-center gap-3 text-xs">
+          {/* Right Header Group: Controls */}
+          <div className="flex items-center gap-2 sm:gap-3 text-xs">
             
             {/* Gamification XP Level Pill */}
             <button
               onClick={() => navigateTab('xp_badges')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-xs font-bold text-white hover:bg-cyber-neonPurple/25 transition-all cursor-pointer shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-xs font-bold text-white hover:bg-cyber-neonPurple/25 transition-all cursor-pointer shadow-[0_0_10px_rgba(168,85,247,0.2)]"
               title="View RookX XP & Badges"
             >
               <Award size={14} className="text-cyber-neonPurple animate-pulse" />
@@ -626,14 +623,14 @@ export default function App() {
               )}
             </button>
 
-            {/* SEPARATE ACCOUNT / SIGN IN BUTTON */}
+            {/* Account / Sign In Button */}
             {activeSession.isAuthenticated ? (
               <button 
                 onClick={() => setShowAccountModal(true)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyber-neonPurple/50 bg-cyber-neonPurple/15 text-white hover:bg-cyber-neonPurple/25 transition-all font-bold cursor-pointer"
               >
                 <UserCheck size={15} className="text-cyber-neonPurple" />
-                <span>{userDisplayName}</span>
+                <span className="hidden xs:inline">{userDisplayName}</span>
               </button>
             ) : (
               <button
@@ -641,7 +638,7 @@ export default function App() {
                   setAuthModalMode('login');
                   setShowAuthModal(true);
                 }}
-                className="cyber-btn cyber-btn-purple px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-md cursor-pointer"
+                className="cyber-btn cyber-btn-purple px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <LogIn size={14} /> SIGN IN
               </button>
@@ -650,37 +647,87 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Body with Sidebar + Workspace */}
-      <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col md:flex-row">
-        
-        {/* Navigation Sidebar */}
-        <aside className="w-full md:w-64 border-r border-cyber-border p-4 bg-cyber-dark/60 backdrop-blur-sm shrink-0 font-mono">
-          <div className="hud-label text-slate-500 mb-3 px-2">Navigation</div>
-          <nav className="space-y-1">
-            {navItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigateTab(item.id)}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left cursor-pointer
-                    ${isActive 
-                      ? 'bg-cyber-neonPurple/20 border border-cyber-neonPurple/60 text-white border-glow-purple' 
-                      : 'text-slate-400 hover:bg-cyber-dark/40 hover:text-slate-200 border border-transparent'}
-                  `}
-                >
-                  <Icon size={16} className={isActive ? 'text-cyber-neonPurple' : 'text-slate-500'} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+      {/* Slide-over Hamburger Navigation Drawer */}
+      {isNavOpen && (
+        <div className="fixed inset-0 z-50 flex font-mono animate-fadeIn">
+          {/* Backdrop Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsNavOpen(false)}
+          />
 
-        {/* Workspace Canvas */}
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          {/* Drawer Content Panel */}
+          <div className="relative w-80 max-w-[85vw] h-full bg-cyber-dark border-r border-cyber-border p-5 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col z-10 animate-slideRight">
+            
+            {/* Drawer Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-cyber-border/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded border border-cyber-neonPurple flex items-center justify-center font-extrabold text-white text-xs shadow-[0_0_10px_rgba(168,85,247,0.3)]">
+                  RX
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white tracking-wider m-0 leading-none">RookX Menu</h3>
+                  <span className="text-[9px] text-cyber-neonPurple uppercase tracking-widest">Navigation Suite</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsNavOpen(false)}
+                className="p-1.5 rounded-lg border border-cyber-border text-slate-400 hover:text-white hover:border-cyber-neonPurple transition-all cursor-pointer"
+                title="Close Menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Navigation Options List */}
+            <div className="hud-label text-slate-500 mt-4 mb-2 px-2 text-[10px]">CAREER ENGINE NAVIGATION</div>
+            <nav className="space-y-1 overflow-y-auto flex-1 pr-1">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => navigateTab(item.id)}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left cursor-pointer
+                      ${isActive 
+                        ? 'bg-cyber-neonPurple/20 border border-cyber-neonPurple/60 text-white border-glow-purple' 
+                        : 'text-slate-400 hover:bg-cyber-dark/40 hover:text-slate-200 border border-transparent'}
+                    `}
+                  >
+                    <Icon size={16} className={isActive ? 'text-cyber-neonPurple' : 'text-slate-500'} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Drawer Footer */}
+            <div className="pt-4 border-t border-cyber-border/80 text-xs space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[11px] text-slate-400">Theme Mode</span>
+                <button
+                  onClick={toggleTheme}
+                  className="px-2.5 py-1 rounded-lg border border-cyber-border bg-cyber-dark/40 text-[11px] font-bold text-white hover:border-cyber-neonPurple transition-all"
+                >
+                  {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+                </button>
+              </div>
+
+              <div className="text-[10px] text-slate-500 text-center">
+                RookX Career Decision Engine • 2026
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Main Workspace Canvas (Full Width) */}
+      <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col">
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
           {renderActiveTab()}
         </main>
       </div>
